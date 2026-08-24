@@ -1,0 +1,46 @@
+﻿{
+  "expo": {
+    "name": "FlowSight",
+    "slug": "flowsight",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "flowsight",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#7C3AED"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.flowsight.mobile",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "FlowSight uses Face ID to secure your session.",
+        "CFBundleAllowMixedLocalizations": true
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#7C3AED"
+      },
+      "package": "ai.flowsight.mobile",
+      "versionCode": 1
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-localization"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

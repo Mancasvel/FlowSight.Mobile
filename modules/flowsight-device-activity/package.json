@@ -1,0 +1,6 @@
+﻿{
+  "name": "flowsight-device-activity",
+  "version": "0.1.0",
+  "description": "FlowSight device activity tracking module",
+  "main": "src/index.ts"
+}

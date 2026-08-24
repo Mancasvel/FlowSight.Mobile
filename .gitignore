@@ -1,0 +1,40 @@
+﻿# Dependencies
+node_modules/
+.expo/
+dist/
+
+# Environment
+.env.local
+.env.*.local
+
+# Build
+*.tsbuildinfo
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+coverage/
+
+# Native
+android/app/build/
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+
+# EAS
+.eas/
