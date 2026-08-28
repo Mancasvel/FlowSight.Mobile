@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Focus Spec — Parity tests against Rust focus_semantics.rs fixtures.
  *
  * These tests use the SAME fixture data as:

@@ -1,51 +1,55 @@
-/**
- * Typography — Text components with consistent styling.
- */
-
 import React from 'react';
 import { Text, type TextProps, type TextStyle } from 'react-native';
 import { useTheme } from '@/theme';
 import { fontSize, fontWeight, lineHeight } from '@/theme/tokens';
 
-interface TypographyProps extends TextProps {
-  variant?: 'display' | 'h1' | 'h2' | 'h3' | 'body' | 'bodySmall' | 'caption' | 'label';
-  color?: string;
-  align?: TextStyle['textAlign'];
-  weight?: keyof typeof fontWeight;
-}
-
-const variantStyles: Record<string, TextStyle> = {
-  display: { fontSize: fontSize.display, lineHeight: fontSize.display * lineHeight.tight, fontWeight: fontWeight.bold },
-  h1: { fontSize: fontSize.xxxl, lineHeight: fontSize.xxxl * lineHeight.tight, fontWeight: fontWeight.bold },
-  h2: { fontSize: fontSize.xxl, lineHeight: fontSize.xxl * lineHeight.tight, fontWeight: fontWeight.semibold },
-  h3: { fontSize: fontSize.xl, lineHeight: fontSize.xl * lineHeight.tight, fontWeight: fontWeight.semibold },
-  body: { fontSize: fontSize.base, lineHeight: fontSize.base * lineHeight.normal, fontWeight: fontWeight.regular },
-  bodySmall: { fontSize: fontSize.sm, lineHeight: fontSize.sm * lineHeight.normal, fontWeight: fontWeight.regular },
-  caption: { fontSize: fontSize.xs, lineHeight: fontSize.xs * lineHeight.normal, fontWeight: fontWeight.regular },
-  label: { fontSize: fontSize.sm, lineHeight: fontSize.sm * lineHeight.normal, fontWeight: fontWeight.medium },
-};
+type Variant = 'display' | 'title' | 'subtitle' | 'body' | 'caption';
 
 export function Typography({
+  children,
   variant = 'body',
   color,
-  align,
-  weight,
   style,
-  children,
   ...rest
-}: TypographyProps) {
+}: TextProps & {
+  variant?: Variant;
+  color?: string;
+}) {
   const { theme } = useTheme();
+  const variantStyle: TextStyle =
+    variant === 'display'
+      ? {
+          fontSize: fontSize.display,
+          fontWeight: fontWeight.semibold,
+          lineHeight: fontSize.display * lineHeight.tight,
+          letterSpacing: -1.4,
+          fontVariant: ['tabular-nums'],
+        }
+      : variant === 'title'
+        ? {
+            fontSize: fontSize.xxxl,
+            fontWeight: fontWeight.bold,
+            lineHeight: fontSize.xxxl * lineHeight.tight,
+            letterSpacing: -1.2,
+          }
+        : variant === 'subtitle'
+          ? { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, letterSpacing: -0.3 }
+          : variant === 'caption'
+            ? { fontSize: fontSize.sm, fontWeight: fontWeight.medium, letterSpacing: 0.1 }
+            : {
+                fontSize: fontSize.base,
+                fontWeight: fontWeight.regular,
+                lineHeight: fontSize.base * lineHeight.relaxed,
+              };
 
   return (
     <Text
+      {...rest}
       style={[
-        variantStyles[variant],
-        { color: color ?? theme.text },
-        align ? { textAlign: align } : undefined,
-        weight ? { fontWeight: fontWeight[weight] } : undefined,
+        variantStyle,
+        { color: color ?? (variant === 'caption' ? theme.textSecondary : theme.text) },
         style,
       ]}
-      {...rest}
     >
       {children}
     </Text>

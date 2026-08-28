@@ -1,10 +1,16 @@
-﻿export { getClient, signInWithEmail, signUpWithEmail, signInWithGoogle, handleOAuthCallback, signOut, getCurrentSession, getCurrentUser, onAuthStateChange } from './auth';
-export { SUPABASE_URL, SUPABASE_ANON_KEY } from './config';
+export {
+  getClient,
+  signInWithEmail,
+  signUpWithEmail,
+  signOut,
+  getCurrentUser,
+  onAuthStateChange,
+} from './auth';
 export { getTimerState, getCurrentSession as getTimerSession, getElapsedSeconds, subscribe as subscribeTimer, startTimer, pauseTimer, resumeTimer, stopTimer, recoverTimer } from './timer';
-export { syncNow, startPeriodicSync, stopPeriodicSync } from './sync';
-export { getEntitlements, freeEntitlements, clearEntitlementsCache, canSync, canCloudAI, canIntegrations, isPaid } from './entitlements';
-export { registerDevice, getUserDevices } from './device';
-export { getProfile, updateProfile, getPrivacyPreferences, updatePrivacyPreferences, getTeams } from './profile';
-export { generateLocalReport, generateCloudReport, formatReportText, type LocalReport, type CloudReport } from './report';
-export { sendCoachMessage, getCoachUsage, getConversationHistory, type CoachUsage, type CoachResult } from './coach';
-export { connectJira, fetchJiraTasks, connectLinear, fetchLinearTasks, getNotionStatus, startNotionOAuth, disconnectNotion, searchNotionDestinations, publishNotionReport } from './integrations';
+export {
+  startDeviceActivityCapture,
+  stopDeviceActivityCapture,
+  getLastSessionWindow,
+  hydrateLastSessionWindow,
+  getCaptureWarning,
+} from './deviceActivity';

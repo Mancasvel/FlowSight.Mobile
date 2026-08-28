@@ -1,74 +1,55 @@
-/**
- * Settings Screen — Privacy, account, integrations settings.
- */
-
-import React from 'react';
-import { View, ScrollView, Pressable, Alert } from 'react-native';
-import { router } from 'expo-router';
-import { Screen, Card, Typography, Badge } from '@/components';
-import { useTheme } from '@/theme';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, Alert, Share } from 'react-native';
+import { Screen, Card, Button, Typography } from '@/components';
+import {
+  deleteLocalData,
+  exportLocalData,
+  getPrivacyConsent,
+  updatePrivacyConsent,
+} from '@/privacy/privacyService';
 import { spacing } from '@/theme/tokens';
-import { signOut } from '@/services';
-
-interface SettingsRowProps {
-  label: string;
-  value?: string;
-  onPress?: () => void;
-  badge?: string;
-  badgeVariant?: 'default' | 'success' | 'warning' | 'error' | 'info';
-  destructive?: boolean;
-}
-
-function SettingsRow({ label, value, onPress, badge, badgeVariant, destructive }: SettingsRowProps) {
-  const { theme } = useTheme();
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: spacing.md,
-        opacity: pressed ? 0.7 : 1,
-      })}
-    >
-      <Typography
-        variant="body"
-        color={destructive ? '#EF4444' : theme.text}
-      >
-        {label}
-      </Typography>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        {badge && <Badge label={badge} variant={badgeVariant ?? 'info'} />}
-        {value && (
-          <Typography variant="body" color={theme.textSecondary}>
-            {value}
-          </Typography>
-        )}
-        <Typography variant="body" color={theme.textTertiary}>
-          ›
-        </Typography>
-      </View>
-    </Pressable>
-  );
-}
 
 export default function SettingsScreen() {
-  const { theme } = useTheme();
+  const [busy, setBusy] = useState(false);
+  const [cloudSync, setCloudSync] = useState(false);
 
-  const handleLogout = () => {
+  useEffect(() => {
+    void getPrivacyConsent().then((consent) => setCloudSync(consent.cloudSync));
+  }, []);
+
+  const toggleSync = async () => {
+    const next = !cloudSync;
+    await updatePrivacyConsent({ cloudSync: next });
+    setCloudSync(next);
     Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
+      'Cloud sync',
+      next
+        ? 'Timer session totals may sync if you sign in. Apple Screen Time (app names and per-app time) never leaves this iPhone.'
+        : 'Cloud sync is off. New sessions stay only on this iPhone.'
+    );
+  };
+
+  const exportData = async () => {
+    const payload = await exportLocalData();
+    await Share.share({
+      message: JSON.stringify(payload, null, 2),
+    });
+  };
+
+  const eraseLocal = () => {
+    Alert.alert(
+      'Delete local data',
+      'This removes sessions and preferences from this iPhone. Screen Time history stays in Apple Settings. We cannot delete Apple data.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            await signOut();
-            router.replace('/(tabs)');
+          onPress: () => {
+            setBusy(true);
+            void deleteLocalData()
+              .then(() => Alert.alert('Done', 'Local FlowSight data was deleted.'))
+              .finally(() => setBusy(false));
           },
         },
       ]
@@ -77,87 +58,36 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: spacing.xxxxl }}
-      >
-        {/* Header */}
-        <View style={{ marginTop: spacing.xl, marginBottom: spacing.xxl }}>
-          <Typography variant="h1">Settings</Typography>
-        </View>
+      <Typography variant="caption">Privacy</Typography>
+      <Typography variant="title">Data and rights</Typography>
 
-        {/* Account */}
-        <Card style={{ marginBottom: spacing.lg }}>
-          <Typography variant="h3" style={{ marginBottom: spacing.md }}>
-            Account
+      <View style={styles.stack}>
+        <Card>
+          <Typography variant="subtitle">What we store</Typography>
+          <Typography variant="caption">
+            The timer saves start, stop, duration and pause count in SQLite on this iPhone.
+            Per-app Screen Time is drawn by Apple's extension and is never copied into our database, never sent to a server, and never used for ads.
           </Typography>
-          <SettingsRow label="Profile" onPress={() => {}} />
-          <View style={{ height: 1, backgroundColor: theme.border }} />
-          <SettingsRow label="Plan" value="Free" onPress={() => {}} />
-          <View style={{ height: 1, backgroundColor: theme.border }} />
-          <SettingsRow label="Teams" onPress={() => {}} />
         </Card>
-
-        {/* Integrations */}
-        <Card style={{ marginBottom: spacing.lg }}>
-          <Typography variant="h3" style={{ marginBottom: spacing.md }}>
-            Integrations
+        <Card>
+          <Typography variant="subtitle">No in-app purchases</Typography>
+          <Typography variant="caption">
+            This app does not sell subscriptions or unlocks. Desktop coaching and computer sync are outside this binary.
           </Typography>
-          <SettingsRow label="Jira" onPress={() => {}} />
-          <View style={{ height: 1, backgroundColor: theme.border }} />
-          <SettingsRow label="Linear" onPress={() => {}} />
-          <View style={{ height: 1, backgroundColor: theme.border }} />
-          <SettingsRow label="Notion" onPress={() => {}} />
         </Card>
-
-        {/* Privacy */}
-        <Card style={{ marginBottom: spacing.lg }}>
-          <Typography variant="h3" style={{ marginBottom: spacing.md }}>
-            Privacy & Data
-          </Typography>
-          <SettingsRow label="Privacy Settings" onPress={() => {}} />
-          <View style={{ height: 1, backgroundColor: theme.border }} />
-          <SettingsRow label="Export Data" onPress={() => {}} />
-          <View style={{ height: 1, backgroundColor: theme.border }} />
-          <SettingsRow label="Delete Local Data" destructive onPress={() => {
-            Alert.alert('Delete Local Data', 'This will remove all local activity data. This cannot be undone.', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Delete', style: 'destructive' },
-            ]);
-          }} />
-        </Card>
-
-        {/* Notifications */}
-        <Card style={{ marginBottom: spacing.lg }}>
-          <Typography variant="h3" style={{ marginBottom: spacing.md }}>
-            Notifications
-          </Typography>
-          <SettingsRow label="Reminders" value="Off" onPress={() => {}} />
-        </Card>
-
-        {/* Appearance */}
-        <Card style={{ marginBottom: spacing.lg }}>
-          <Typography variant="h3" style={{ marginBottom: spacing.md }}>
-            Appearance
-          </Typography>
-          <SettingsRow label="Theme" value="System" onPress={() => {}} />
-        </Card>
-
-        {/* Sign Out */}
-        <Card style={{ marginBottom: spacing.lg }}>
-          <SettingsRow label="Sign Out" onPress={handleLogout} destructive />
-        </Card>
-
-        {/* Version */}
-        <Typography
-          variant="caption"
-          color={theme.textTertiary}
-          align="center"
-          style={{ marginTop: spacing.lg }}
-        >
-          FlowSight Mobile v0.1.0
-        </Typography>
-      </ScrollView>
+        <Button
+          label={cloudSync ? 'Turn off optional cloud sync' : 'Turn on optional cloud sync'}
+          variant="secondary"
+          onPress={() => void toggleSync()}
+          disabled={busy}
+        />
+        <Button label="Export my data" variant="secondary" onPress={() => void exportData()} disabled={busy} />
+        <Button label="Delete local data" variant="danger" onPress={eraseLocal} disabled={busy} />
+      </View>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  stack: { gap: spacing.md, marginTop: spacing.lg },
+});

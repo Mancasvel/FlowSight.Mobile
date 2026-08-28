@@ -1,43 +1,75 @@
-﻿{
+{
   "expo": {
     "name": "FlowSight",
     "slug": "flowsight",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "flowsight",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "platforms": ["ios"],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#7C3AED"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
+      "requireFullScreen": true,
       "bundleIdentifier": "ai.flowsight.mobile",
-      "buildNumber": "1",
+      "appleTeamId": "MLUJVMGV82",
+      "buildNumber": "2",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "FlowSight uses Face ID to secure your session.",
-        "CFBundleAllowMixedLocalizations": true
+        "LSRequiresIPhoneOS": true,
+        "UIDeviceFamily": [1],
+        "CFBundleAllowMixedLocalizations": true,
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.family-controls": true
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": ["E174.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]
+          }
+        ]
       },
       "config": {
         "usesNonExemptEncryption": false
       }
     },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#7C3AED"
-      },
-      "package": "ai.flowsight.mobile",
-      "versionCode": 1
-    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-sqlite",
-      "expo-localization"
+      "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.0"
+          }
+        }
+      ],
+      "./modules/flowsight-device-activity/app.plugin.js"
     ],
     "experiments": {
       "typedRoutes": true

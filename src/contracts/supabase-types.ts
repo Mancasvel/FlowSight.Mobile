@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Supabase Database Types — Generated from schema.
  *
  * These types represent the deployed Supabase schema.

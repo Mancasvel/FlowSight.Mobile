@@ -14,7 +14,7 @@ import * as Linking from 'expo-linking';
 export async function connectJira(): Promise<string | null> {
   const entitlements = await getEntitlements();
   if (!canIntegrations(entitlements)) {
-    throw new Error('Integrations require an active subscription');
+    throw new Error('Desktop integrations are not available in this iPhone app');
   }
 
   // The actual OAuth URL is generated server-side
@@ -40,7 +40,7 @@ export async function fetchJiraTasks() {
 export async function connectLinear(): Promise<string | null> {
   const entitlements = await getEntitlements();
   if (!canIntegrations(entitlements)) {
-    throw new Error('Integrations require an active subscription');
+    throw new Error('Desktop integrations are not available in this iPhone app');
   }
 
   const client = getClient();
@@ -74,7 +74,7 @@ export async function getNotionStatus() {
 export async function startNotionOAuth() {
   const entitlements = await getEntitlements();
   if (!canIntegrations(entitlements)) {
-    throw new Error('Integrations require an active subscription');
+    throw new Error('Desktop integrations are not available in this iPhone app');
   }
 
   const client = getClient();
@@ -83,7 +83,7 @@ export async function startNotionOAuth() {
 
   // Call the notion-oauth Edge Function
   const response = await fetch(
-    `${client.supabase.supabaseUrl}/functions/v1/notion-oauth`,
+    `${client.url}/functions/v1/notion-oauth`,
     {
       method: 'POST',
       headers: {
@@ -120,7 +120,7 @@ export async function searchNotionDestinations(query?: string) {
   if (!session) throw new Error('Not authenticated');
 
   const response = await fetch(
-    `${client.supabase.supabaseUrl}/functions/v1/notion-destinations`,
+    `${client.url}/functions/v1/notion-destinations`,
     {
       method: 'POST',
       headers: {
@@ -146,7 +146,7 @@ export async function publishNotionReport(options: {
   if (!session) throw new Error('Not authenticated');
 
   const response = await fetch(
-    `${client.supabase.supabaseUrl}/functions/v1/publish-notion-report`,
+    `${client.url}/functions/v1/publish-notion-report`,
     {
       method: 'POST',
       headers: {

@@ -1,6 +1,20 @@
-﻿{
+{
   "name": "flowsight-device-activity",
   "version": "0.1.0",
-  "description": "FlowSight device activity tracking module",
-  "main": "src/index.ts"
+  "description": "FlowSight Screen Time / UsageStats native module",
+  "main": "src/index",
+  "types": "src/index.ts",
+  "react-native": "src/index",
+  "files": [
+    "src",
+    "ios",
+    "plugin",
+    "app.plugin.js",
+    "expo-module.config.json"
+  ],
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
 }

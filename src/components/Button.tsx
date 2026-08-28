@@ -1,131 +1,99 @@
-/**
- * Button — Primary, secondary, and ghost variants with haptic feedback.
- */
-
-import React, { useCallback } from 'react';
-import {
-  Pressable,
-  Text,
-  type ViewStyle,
-  type TextStyle,
-  type StyleProp,
-  ActivityIndicator,
-} from 'react-native';
+import React from 'react';
+import { Pressable, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/theme';
-import { radius, spacing, fontSize, fontWeight, layout } from '@/theme/tokens';
+import { radius, fontSize, fontWeight, layout } from '@/theme/tokens';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type ButtonSize = 'sm' | 'md' | 'lg';
-
-interface ButtonProps {
-  title: string;
-  onPress: () => void;
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  disabled?: boolean;
-  loading?: boolean;
-  icon?: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-}
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 export function Button({
-  title,
+  label,
   onPress,
   variant = 'primary',
-  size = 'md',
   disabled = false,
   loading = false,
-  icon,
-  style,
-}: ButtonProps) {
+}: {
+  label: string;
+  onPress: () => void;
+  variant?: Variant;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
   const { theme } = useTheme();
 
-  const handlePress = useCallback(() => {
-    if (disabled || loading) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onPress();
-  }, [disabled, loading, onPress]);
-
-  const sizeStyles: Record<ButtonSize, { container: ViewStyle; text: TextStyle }> = {
-    sm: {
-      container: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
-      text: { fontSize: fontSize.sm },
-    },
-    md: {
-      container: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-      text: { fontSize: fontSize.base },
-    },
-    lg: {
-      container: { paddingVertical: spacing.lg, paddingHorizontal: spacing.xl },
-      text: { fontSize: fontSize.md },
-    },
-  };
-
-  const variantStyles: Record<ButtonVariant, { container: ViewStyle; text: TextStyle }> = {
-    primary: {
-      container: { backgroundColor: disabled ? theme.textTertiary : theme.primary },
-      text: { color: theme.primaryText },
-    },
-    secondary: {
-      container: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: disabled ? theme.textTertiary : theme.primary,
-      },
-      text: { color: disabled ? theme.textTertiary : theme.primary },
-    },
-    ghost: {
-      container: { backgroundColor: 'transparent' },
-      text: { color: theme.primary },
-    },
-    danger: {
-      container: { backgroundColor: disabled ? theme.textTertiary : '#EF4444' },
-      text: { color: '#FFFFFF' },
-    },
-  };
+  const color =
+    variant === 'primary' || variant === 'danger' ? theme.primaryText : theme.text;
 
   return (
     <Pressable
-      onPress={handlePress}
+      accessibilityRole="button"
       disabled={disabled || loading}
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
       style={({ pressed }) => [
+        styles.button,
         {
-          borderRadius: radius.lg,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: layout.touchTargetIOS,
-          opacity: pressed ? 0.8 : 1,
+          borderColor: variant === 'ghost' ? 'transparent' : theme.glassBorder,
+          opacity: disabled ? 0.5 : pressed ? 0.82 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
         },
-        sizeStyles[size].container,
-        variantStyles[variant].container,
-        style,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={variantStyles[variant].text.color}
+      {variant === 'primary' ? (
+        <LinearGradient
+          colors={['#8D6BFF', '#6545EB']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
         />
+      ) : variant === 'danger' ? (
+        <LinearGradient
+          colors={['#FF758C', '#E84967']}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : variant === 'secondary' ? (
+        <BlurView
+          intensity={35}
+          tint={theme.statusBar === 'dark' ? 'light' : 'dark'}
+          style={[StyleSheet.absoluteFill, { backgroundColor: theme.glass }]}
+        />
+      ) : null}
+      <View style={styles.content}>
+      {loading ? (
+        <ActivityIndicator color={color} />
       ) : (
-        <>
-          {icon}
-          <Text
-            style={[
-              {
-                fontWeight: fontWeight.semibold,
-                textAlign: 'center',
-              },
-              sizeStyles[size].text,
-              variantStyles[variant].text,
-              icon ? { marginLeft: spacing.sm } : undefined,
-            ]}
-          >
-            {title}
-          </Text>
-        </>
+        <Text style={[styles.label, { color }]}>{label}</Text>
       )}
+      </View>
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    minHeight: layout.touchTargetIOS,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    overflow: 'hidden',
+    shadowColor: '#5E3ECB',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+  },
+  content: {
+    minHeight: layout.touchTargetIOS,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  label: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+  },
+});

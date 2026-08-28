@@ -5,7 +5,7 @@
  * Uses exponential backoff with jitter for retries.
  */
 
-import { getUnsyncedEvents, markEventSynced } from '@/storage';
+import { getUnsyncedEvents, markEventSynced, getPreference } from '@/storage';
 import { getClient } from '@/services/auth';
 
 const MAX_RETRIES = 5;
@@ -16,6 +16,12 @@ let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
 export async function syncNow(): Promise<{ synced: number; failed: number }> {
   if (syncInProgress) return { synced: 0, failed: 0 };
+
+  const consent = await getPreference('consent_cloud_sync');
+  if (consent !== 'true') {
+    return { synced: 0, failed: 0 };
+  }
+
   syncInProgress = true;
 
   let synced = 0;
@@ -32,7 +38,7 @@ export async function syncNow(): Promise<{ synced: number; failed: number }> {
       console.error('[Sync] Upload failed:', error);
       failed = events.length;
     } else {
-      for (const event of events) {
+      for (const event of events as Array<{ id: string }>) {
         await markEventSynced(event.id);
         synced++;
       }

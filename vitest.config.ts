@@ -1,10 +1,14 @@
-﻿import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 import path from 'path';
 
 export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      'flowsight-device-activity': path.resolve(
+        __dirname,
+        'modules/flowsight-device-activity/src/index.ts'
+      ),
     },
   },
   test: {

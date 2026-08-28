@@ -1,148 +1,75 @@
 /**
- * Report Service ó Deterministic local reports and cloud AI reports.
- *
- * Local reports work offline and without entitlement.
- * Cloud reports require entitlement and cloud_ai consent.
+ * Report Service ù Local deterministic insights plus optional cloud reports.
  */
 
-import { getDailyStats, getWeeklyStats, getPreference } from '@/storage';
+import { getDailyStats, getWeeklyStats } from '@/storage';
+import { getTodayDate, getWeekStartDate, formatDurationShort } from '@/utils/format';
 import { summarizeFocus, type ActivitySample } from '@/focus-spec';
 import { getClient } from './auth';
-import { getEntitlements, canCloudAI } from './entitlements';
-import { formatDurationShort, getTodayDate, getWeekStartDate } from '@/utils/format';
+import { canCloudAI, getEntitlements } from './entitlements';
 
 export interface LocalReport {
-  type: 'local';
-  period: string;
-  totalHours: number;
+  date: string;
   totalSeconds: number;
-  dailyGoalMinutes: number;
-  goalProgress: number;
-  deepFocusHours: number;
-  deepFocusSessions: number;
-  topCategories: Array<{ category: string; hours: number }>;
-  dailyTotals: Array<{ date: string; seconds: number }>;
-  focusSemantics: {
-    fragmentation_pct: number;
-    theme_switches: number;
-    distraction_events: number;
-    context_work_seconds: number;
-    proxy_disclaimer: string;
-  };
-  generatedAt: string;
+  categories: Array<{ category: string; totalSeconds: number; sessionCount: number }>;
+  focus: ReturnType<typeof summarizeFocus>;
 }
 
 export interface CloudReport {
-  type: 'cloud';
-  content: Record<string, unknown>;
-  model: string;
+  insight: unknown;
   generatedAt: string;
 }
 
-/**
- * Generate a deterministic local report.
- * Works offline, no entitlement required.
- */
-export async function generateLocalReport(periodDays: number = 7): Promise<LocalReport> {
-  const today = getTodayDate();
-  const goalStr = await getPreference('daily_goal_minutes');
-  const dailyGoalMinutes = parseInt(goalStr ?? '480') || 480;
+export async function generateLocalReport(date = getTodayDate()): Promise<LocalReport> {
+  const { rows, totalSeconds } = await getDailyStats(date);
 
-  // Get stats for the period
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - periodDays);
-  const startDateStr = startDate.toISOString().split('T')[0];
-
-  const weeklyRows = await getWeeklyStats(startDateStr, today);
-  const totalSeconds = weeklyRows.reduce((sum, r) => sum + r.total_seconds, 0);
-
-  // Get today's detailed stats for category breakdown
-  const todayStats = await getDailyStats(today);
-  const categoryBreakdown = todayStats.rows.map((r) => ({
-    category: r.category,
-    hours: Math.round((r.total_seconds / 3600) * 10) / 10,
-  }));
-
-  // Calculate focus summary
-  const samples: ActivitySample[] = todayStats.rows.map((r) => ({
-    start_at: new Date().toISOString(),
-    duration_seconds: r.total_seconds,
-    category: r.category as any,
+  const samples: ActivitySample[] = rows.map((row) => ({
+    start_at: `${date}T09:00:00.000Z`,
+    duration_seconds: row.total_seconds,
+    category: row.category as ActivitySample['category'],
+    theme_hint: null,
     source: 'manual_timer',
   }));
-  const focus = summarizeFocus(samples);
-
-  const todayMinutes = Math.round(todayStats.totalSeconds / 60);
 
   return {
-    type: 'local',
-    period: `${periodDays} days`,
-    totalHours: Math.round((totalSeconds / 3600) * 10) / 10,
+    date,
     totalSeconds,
-    dailyGoalMinutes,
-    goalProgress: Math.min(todayMinutes / dailyGoalMinutes, 1),
-    deepFocusHours: Math.round((focus.deep_focus_seconds / 3600) * 10) / 10,
-    deepFocusSessions: focus.deep_focus_sessions,
-    topCategories: categoryBreakdown.slice(0, 8),
-    dailyTotals: weeklyRows.map((r) => ({ date: r.date, seconds: r.total_seconds })),
-    focusSemantics: {
-      fragmentation_pct: focus.fragmentation_pct,
-      theme_switches: focus.theme_switches,
-      distraction_events: focus.distraction_events,
-      context_work_seconds: focus.context_work_seconds,
-      proxy_disclaimer: focus.proxy_disclaimer,
-    },
-    generatedAt: new Date().toISOString(),
+    categories: rows.map((r) => ({
+      category: r.category,
+      totalSeconds: r.total_seconds,
+      sessionCount: r.session_count,
+    })),
+    focus: summarizeFocus(samples),
   };
 }
 
-/**
- * Generate a cloud AI report.
- * Requires entitlement and cloud_ai consent.
- */
-export async function generateCloudReport(
-  periodDays: number = 7,
-  localReport?: LocalReport
-): Promise<CloudReport> {
+export async function generateCloudReport(periodDays = 7): Promise<CloudReport> {
   const entitlements = await getEntitlements();
   if (!canCloudAI(entitlements)) {
-    throw new Error('Cloud AI requires an active subscription');
+    throw new Error('Cloud insights are not available in this iPhone app');
   }
 
-  const client = getClient();
-  const result = await client.generateInsight({
+  const weekStart = getWeekStartDate();
+  const weekly = await getWeeklyStats(weekStart, getTodayDate());
+  const localReport = await generateLocalReport();
+
+  const insight = await getClient().generateInsight({
     periodDays,
-    localReport: localReport as unknown as Record<string, unknown>,
+    localReport: { weekly, local: localReport },
   });
 
-  return {
-    type: 'cloud',
-    content: result.insight?.content ?? {},
-    model: result.insight?.content?.model ?? 'unknown',
-    generatedAt: new Date().toISOString(),
-  };
+  return { insight, generatedAt: new Date().toISOString() };
 }
 
-/**
- * Format a local report as shareable text.
- */
 export function formatReportText(report: LocalReport): string {
   const lines = [
-    `FlowSight Report ó ${report.period}`,
-    '',
+    `FlowSight ù ${report.date}`,
     `Total: ${formatDurationShort(report.totalSeconds)}`,
-    `Deep Focus: ${formatDurationShort(report.deepFocusHours * 3600)} (${report.deepFocusSessions} sessions)`,
-    `Goal: ${Math.round(report.goalProgress * 100)}%`,
+    `Deep focus: ${formatDurationShort(report.focus.deep_focus_seconds)}`,
     '',
-    'Top Categories:',
-    ...report.topCategories.map((c) => `  ï ${c.category}: ${c.hours}h`),
-    '',
-    `Fragmentation: ${report.focusSemantics.fragmentation_pct}%`,
-    `Theme switches: ${report.focusSemantics.theme_switches}`,
-    `Distraction events: ${report.focusSemantics.distraction_events}`,
-    '',
-    report.focusSemantics.proxy_disclaimer,
+    ...report.categories.map(
+      (c) => `${c.category}: ${formatDurationShort(c.totalSeconds)} (${c.sessionCount})`
+    ),
   ];
-
   return lines.join('\n');
 }

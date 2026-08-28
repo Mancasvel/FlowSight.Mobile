@@ -29,16 +29,20 @@ export function createFlowSightClient(
 // --- FlowSight Client ----------------------------------------------------------
 
 export class FlowSightClient {
-  readonly supabase: SupabaseClient;
+  supabase: SupabaseClient;
+  readonly url: string;
 
-  constructor(supabaseUrl: string, supabaseAnonKey: string) {
-    this.supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-      },
-    });
+  constructor(supabaseUrl: string, supabaseAnonKey: string, supabase?: SupabaseClient) {
+    this.url = supabaseUrl;
+    this.supabase =
+      supabase ??
+      createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+        },
+      });
   }
 
   // -- Auth ------------------------------------------------------------------
@@ -163,7 +167,7 @@ export class FlowSightClient {
     if (!session) throw new Error('Not authenticated');
 
     const response = await fetch(
-      `${this.supabase.supabaseUrl}/functions/v1/coach-chat`,
+      `${this.url}/functions/v1/coach-chat`,
       {
         method: 'POST',
         headers: {
@@ -198,7 +202,7 @@ export class FlowSightClient {
     if (!session) throw new Error('Not authenticated');
 
     const response = await fetch(
-      `${this.supabase.supabaseUrl}/functions/v1/generate-insights`,
+      `${this.url}/functions/v1/generate-insights`,
       {
         method: 'POST',
         headers: {

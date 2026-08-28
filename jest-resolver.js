@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 
 module.exports = (request, options) => {
   // Try the default resolver first

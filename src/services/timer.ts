@@ -5,9 +5,11 @@
  * Survives app backgrounding, suspension, and relaunch.
  */
 
+import { Platform } from 'react-native';
 import { saveActiveSession, getActiveSession, clearActiveSession, insertActivityEvent } from '@/storage';
 import { getDeviceId } from '@/storage';
-import { v4 as uuidv4 } from 'uuid';
+import { createId } from '@/utils/id';
+import { startDeviceActivityCapture, stopDeviceActivityCapture } from '@/services/deviceActivity';
 
 export type TimerState = 'idle' | 'running' | 'paused';
 
@@ -19,6 +21,9 @@ export interface TimerSession {
   ticketRef: string | null;
   pausedAt: number | null;
   accumulatedSeconds: number;
+  pauseCount: number;
+  deviceActivityStarted: boolean;
+  captureWarning: string | null;
 }
 
 let currentSession: TimerSession | null = null;
@@ -62,7 +67,7 @@ export async function startTimer(options?: {
   taskLabel?: string;
   ticketRef?: string;
 }) {
-  const id = uuidv4();
+  const id = createId();
   const now = Date.now();
 
   currentSession = {
@@ -73,20 +78,44 @@ export async function startTimer(options?: {
     ticketRef: options?.ticketRef ?? null,
     pausedAt: null,
     accumulatedSeconds: 0,
+    pauseCount: 0,
+    deviceActivityStarted: false,
+    captureWarning: null,
   };
 
   state = 'running';
-
-  await saveActiveSession({
-    id,
-    started_at: new Date(now).toISOString(),
-    category: options?.category,
-    task_label: options?.taskLabel,
-    ticket_ref: options?.ticketRef,
-    accumulated_seconds: 0,
-  });
-
   notify();
+
+  try {
+    await saveActiveSession({
+      id,
+      started_at: new Date(now).toISOString(),
+      category: options?.category,
+      task_label: options?.taskLabel,
+      ticket_ref: options?.ticketRef,
+      accumulated_seconds: 0,
+      pause_count: 0,
+    });
+  } catch (error) {
+    currentSession = null;
+    state = 'idle';
+    notify();
+    throw error;
+  }
+
+  try {
+    const capture = await startDeviceActivityCapture();
+    if (currentSession?.id === id) {
+      currentSession.deviceActivityStarted = capture.started;
+      currentSession.captureWarning = capture.warning;
+      notify();
+    }
+  } catch {
+    if (currentSession?.id === id) {
+      currentSession.captureWarning = 'Could not start Screen Time capture. The timer still runs.';
+      notify();
+    }
+  }
 }
 
 export async function pauseTimer() {
@@ -96,6 +125,7 @@ export async function pauseTimer() {
   const runningSeconds = Math.floor((now - currentSession.startedAt) / 1000);
   currentSession.accumulatedSeconds += runningSeconds;
   currentSession.pausedAt = now;
+  currentSession.pauseCount += 1;
   state = 'paused';
 
   await saveActiveSession({
@@ -106,6 +136,7 @@ export async function pauseTimer() {
     ticket_ref: currentSession.ticketRef ?? undefined,
     paused_at: new Date(now).toISOString(),
     accumulated_seconds: currentSession.accumulatedSeconds,
+    pause_count: currentSession.pauseCount,
   });
 
   notify();
@@ -125,6 +156,7 @@ export async function resumeTimer() {
     task_label: currentSession.taskLabel ?? undefined,
     ticket_ref: currentSession.ticketRef ?? undefined,
     accumulated_seconds: currentSession.accumulatedSeconds,
+    pause_count: currentSession.pauseCount,
   });
 
   notify();
@@ -132,6 +164,8 @@ export async function resumeTimer() {
 
 export async function stopTimer(): Promise<{
   durationSeconds: number;
+  pauseCount: number;
+  captureStarted: boolean;
   category: string;
   taskLabel: string | null;
   ticketRef: string | null;
@@ -142,22 +176,28 @@ export async function stopTimer(): Promise<{
   const deviceId = await getDeviceId();
   const now = new Date();
   const startedAt = new Date(currentSession.startedAt - (currentSession.accumulatedSeconds * 1000));
+  const session = currentSession;
+  const captureWindow = await stopDeviceActivityCapture();
+  const usedDeviceActivity = Boolean(session.deviceActivityStarted && captureWindow);
 
   const event = {
-    id: currentSession.id,
-    client_event_id: currentSession.id,
+    id: session.id,
+    client_event_id: session.id,
     device_id: deviceId,
-    source: 'manual_timer' as const,
-    source_platform: 'ios' as const, // TODO: detect platform
-    capture_source: 'manual',
+    source: (usedDeviceActivity ? 'ios_device_activity' : 'manual_timer') as
+      | 'ios_device_activity'
+      | 'manual_timer',
+    source_platform: Platform.OS as 'ios' | 'android',
+    capture_source: usedDeviceActivity ? 'device_activity' : 'manual',
     start_at: startedAt.toISOString(),
     end_at: now.toISOString(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     duration_seconds: elapsed,
-    category: currentSession.category ?? 'General',
-    task_label: currentSession.taskLabel,
-    ticket_ref: currentSession.ticketRef,
+    category: session.category ?? 'General',
+    task_label: session.taskLabel,
+    ticket_ref: session.ticketRef,
     confidence: 1.0,
+    pause_count: session.pauseCount,
   };
 
   await insertActivityEvent(event);
@@ -165,9 +205,11 @@ export async function stopTimer(): Promise<{
 
   const result = {
     durationSeconds: elapsed,
+    pauseCount: session.pauseCount,
+    captureStarted: usedDeviceActivity,
     category: event.category,
-    taskLabel: event.taskLabel,
-    ticketRef: event.ticketRef,
+    taskLabel: event.task_label,
+    ticketRef: event.ticket_ref,
   };
 
   currentSession = null;
@@ -198,6 +240,9 @@ export async function recoverTimer(): Promise<void> {
       ticketRef: saved.ticket_ref,
       pausedAt: new Date(saved.paused_at).getTime(),
       accumulatedSeconds: saved.accumulated_seconds,
+      pauseCount: saved.pause_count ?? 0,
+      deviceActivityStarted: false,
+      captureWarning: null,
     };
     state = 'paused';
   } else {
@@ -211,8 +256,19 @@ export async function recoverTimer(): Promise<void> {
       ticketRef: saved.ticket_ref,
       pausedAt: null,
       accumulatedSeconds: saved.accumulated_seconds + elapsedSinceStart,
+      pauseCount: saved.pause_count ?? 0,
+      deviceActivityStarted: false,
+      captureWarning: null,
     };
     state = 'running';
+    void startDeviceActivityCapture()
+      .then((capture) => {
+        if (!currentSession || currentSession.id !== saved.id) return;
+        currentSession.deviceActivityStarted = capture.started;
+        currentSession.captureWarning = capture.warning;
+        notify();
+      })
+      .catch(() => undefined);
   }
 
   notify();

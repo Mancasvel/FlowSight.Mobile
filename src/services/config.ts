@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Config — Public environment variables.
  *
  * Only EXPO_PUBLIC_ variables are safe to include in the bundle.

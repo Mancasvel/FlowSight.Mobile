@@ -7,7 +7,7 @@ import {
   getTimerState,
   getCurrentSession,
   getElapsedSeconds,
-  subscribeTimer,
+  subscribe as subscribeTimer,
   startTimer,
   pauseTimer,
   resumeTimer,
@@ -15,21 +15,23 @@ import {
   recoverTimer,
   type TimerState,
   type TimerSession,
-} from '@/services';
+} from '@/services/timer';
 
 export function useTimer() {
   const [timerState, setTimerState] = useState<TimerState>(getTimerState());
   const [session, setSession] = useState<TimerSession | null>(getCurrentSession());
   const [elapsed, setElapsed] = useState(getElapsedSeconds());
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Recover timer on mount
-    recoverTimer();
-
-    const unsubscribe = subscribeTimer((newState, newSession) => {
+    const unsubscribe = subscribeTimer((newState: TimerState, newSession: TimerSession | null) => {
       setTimerState(newState);
       setSession(newSession);
       setElapsed(getElapsedSeconds());
+    });
+
+    void recoverTimer().catch(() => {
+      setError('Could not restore the previous focus session.');
     });
 
     return unsubscribe;
@@ -51,25 +53,47 @@ export function useTimer() {
     taskLabel?: string;
     ticketRef?: string;
   }) => {
-    await startTimer(options);
+    setError(null);
+    try {
+      await startTimer(options);
+    } catch {
+      setError('Could not start the timer. Please try again.');
+    }
   }, []);
 
   const pause = useCallback(async () => {
-    await pauseTimer();
+    setError(null);
+    try {
+      await pauseTimer();
+    } catch {
+      setError('Could not pause the timer.');
+    }
   }, []);
 
   const resume = useCallback(async () => {
-    await resumeTimer();
+    setError(null);
+    try {
+      await resumeTimer();
+    } catch {
+      setError('Could not resume the timer.');
+    }
   }, []);
 
   const stop = useCallback(async () => {
-    return stopTimer();
+    setError(null);
+    try {
+      return await stopTimer();
+    } catch {
+      setError('Could not save this focus session.');
+      return null;
+    }
   }, []);
 
   return {
     state: timerState,
     session,
     elapsed,
+    error,
     start,
     pause,
     resume,

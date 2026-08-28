@@ -1,241 +1,321 @@
 /**
- * FlowSight Focus Specification ó TypeScript port of focus_semantics.rs.
+ * Focus Spec ù TypeScript port of desktop focus semantics.
+ *
+ * Canonical rules:
+ * - Deep focus = contiguous focus-eligible work ? 25 minutes
+ * - General/Idle ? 60s is a grace break (interrupts, does not split)
+ * - Browsing ? 120s is a distraction and splits the session
+ * - Meeting/Planning/Communication/Sales are context work, never distraction
+ * - Samples that cross midnight are split at the day boundary
+ * - Overlapping samples are clipped
  */
 
-export const CANONICAL_CATEGORIES = [
-  'Analysis', 'Writing', 'Coding', 'Debugging', 'CodeReview',
-  'Testing', 'Documentation', 'Design', 'Planning', 'Meeting',
-  'Communication', 'Research', 'Learning', 'DevOps', 'Database',
-  'Sales', 'Admin', 'Browsing', 'Idle', 'General',
-] as const;
-
-export type CanonicalCategory = (typeof CANONICAL_CATEGORIES)[number];
+import type { CanonicalCategory, DataSource } from '@/contracts';
 
 export const THRESHOLDS = {
-  FOCUSED: 600, DEEP: 1500, EXTENDED: 3000,
-  NON_WORK_SUSTAINED: 120, GRACE_BREAK: 60,
+  deepFocusMinSeconds: 1500,
+  graceBreakMaxSeconds: 60,
+  distractionMinSeconds: 120,
 } as const;
 
-export const FOCUS_ELIGIBLE: ReadonlySet<CanonicalCategory> = new Set([
-  'Analysis', 'Writing', 'Coding', 'Debugging', 'CodeReview',
-  'Testing', 'Documentation', 'Design', 'Research', 'Learning', 'DevOps', 'Database',
+const FOCUS_CATEGORIES = new Set<CanonicalCategory>([
+  'Analysis',
+  'Writing',
+  'Coding',
+  'Debugging',
+  'CodeReview',
+  'Testing',
+  'Documentation',
+  'Design',
+  'Research',
+  'Learning',
+  'DevOps',
+  'Database',
 ]);
 
-export const CONTEXT_CATEGORIES: ReadonlySet<CanonicalCategory> = new Set([
-  'Meeting', 'Planning', 'Communication', 'Sales', 'Admin',
+const CONTEXT_CATEGORIES = new Set<CanonicalCategory>([
+  'Meeting',
+  'Planning',
+  'Communication',
+  'Sales',
+  'Admin',
 ]);
 
-export const DISTRACTION_ELIGIBLE: ReadonlySet<CanonicalCategory> = new Set(['Browsing']);
-export const NEUTRAL_CATEGORIES: ReadonlySet<CanonicalCategory> = new Set(['Idle', 'General']);
-
-export type DataSource = 'manual_timer' | 'desktop_sync' | 'ios_device_activity' |
-  'android_usage_stats' | 'cloud_integration' | 'explicit_import' | 'unknown';
+const UNCERTAIN_CATEGORIES = new Set<CanonicalCategory>(['General', 'Idle']);
 
 export interface ActivitySample {
-  start_at: string; duration_seconds: number; category: CanonicalCategory;
-  theme_hint?: string | null; source: DataSource;
+  start_at: string;
+  duration_seconds: number;
+  category: CanonicalCategory;
+  theme_hint?: string | null;
+  source: DataSource | string;
 }
 
 export interface FocusSession {
-  start_at: string; end_at: string; duration_seconds: number;
-  category: string; theme_hint: string | null; interrupted: boolean; is_deep: boolean;
+  start_at: string;
+  end_at: string;
+  duration_seconds: number;
+  theme: string | null;
+  interrupted: boolean;
+  is_deep: boolean;
 }
 
 export interface FocusSummary {
-  deep_focus_seconds: number; deep_focus_sessions: number; total_sessions: number;
-  interrupted_sessions: number; theme_switches: number; resume_events: number;
-  distraction_events: number; distraction_seconds: number; context_work_seconds: number;
-  fragmentation_pct: number; explicit_theme_coverage_pct: number;
-  average_resume_seconds: number | null; sessions: FocusSession[]; proxy_disclaimer: string;
+  deep_focus_seconds: number;
+  deep_focus_sessions: number;
+  total_sessions: number;
+  interrupted_sessions: number;
+  theme_switches: number;
+  resume_events: number;
+  distraction_events: number;
+  distraction_seconds: number;
+  context_work_seconds: number;
+  sessions: FocusSession[];
+  proxy_disclaimer: string;
 }
 
-export const PROXY_DISCLAIMER =
-  'Deep Focus is an observable proxy of sustained focus-eligible activity without an observed theme change. ' +
-  'It does not measure psychological flow, productivity, or work quality.';
-
-function crossesMidnight(startMs: number, durationSec: number): boolean {
-  const startDate = new Date(startMs);
-  const endDate = new Date(startMs + durationSec * 1000);
-  return startDate.getDate() !== endDate.getDate();
+interface Interval {
+  start: number;
+  end: number;
+  category: CanonicalCategory;
+  theme: string | null;
 }
+
+function startOfNextDay(ms: number): number {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+}
+
+function splitAtMidnight(samples: ActivitySample[]): Interval[] {
+  const intervals: Interval[] = [];
+
+  for (const sample of samples) {
+    let start = new Date(sample.start_at).getTime();
+    let remaining = sample.duration_seconds * 1000;
+    const theme = sample.theme_hint ?? null;
+
+    while (remaining > 0) {
+      const midnight = startOfNextDay(start);
+      const slice = Math.min(remaining, midnight - start);
+      intervals.push({
+        start,
+        end: start + slice,
+        category: sample.category,
+        theme,
+      });
+      start += slice;
+      remaining -= slice;
+    }
+  }
+
+  return intervals.sort((a, b) => a.start - b.start);
+}
+
+function clipOverlaps(intervals: Interval[]): Interval[] {
+  const clipped: Interval[] = [];
+  let cursor = 0;
+
+  for (const interval of intervals) {
+    const start = Math.max(interval.start, cursor);
+    if (start >= interval.end) continue;
+    clipped.push({ ...interval, start });
+    cursor = interval.end;
+  }
+
+  return clipped;
+}
+
+function isFocus(category: CanonicalCategory): boolean {
+  return FOCUS_CATEGORIES.has(category);
+}
+
+function isContext(category: CanonicalCategory): boolean {
+  return CONTEXT_CATEGORIES.has(category);
+}
+
+function isUncertain(category: CanonicalCategory): boolean {
+  return UNCERTAIN_CATEGORIES.has(category);
+}
+
+function isDistraction(category: CanonicalCategory, seconds: number): boolean {
+  return category === 'Browsing' && seconds >= THRESHOLDS.distractionMinSeconds;
+}
+
+function isGrace(category: CanonicalCategory, seconds: number): boolean {
+  return isUncertain(category) && seconds <= THRESHOLDS.graceBreakMaxSeconds;
+}
+
+function dayKey(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+const PROXY_DISCLAIMER =
+  'Deep focus is an observable proxy of contiguous work time, not a measure of cognitive intensity or quality.';
 
 export function summarizeFocus(samples: ActivitySample[]): FocusSummary {
   const empty: FocusSummary = {
-    deep_focus_seconds: 0, deep_focus_sessions: 0, total_sessions: 0,
-    interrupted_sessions: 0, theme_switches: 0, resume_events: 0,
-    distraction_events: 0, distraction_seconds: 0, context_work_seconds: 0,
-    fragmentation_pct: 0, explicit_theme_coverage_pct: 0,
-    average_resume_seconds: null, sessions: [], proxy_disclaimer: PROXY_DISCLAIMER,
+    deep_focus_seconds: 0,
+    deep_focus_sessions: 0,
+    total_sessions: 0,
+    interrupted_sessions: 0,
+    theme_switches: 0,
+    resume_events: 0,
+    distraction_events: 0,
+    distraction_seconds: 0,
+    context_work_seconds: 0,
+    sessions: [],
+    proxy_disclaimer: PROXY_DISCLAIMER,
   };
+
   if (samples.length === 0) return empty;
 
-  const sorted = [...samples].sort(
-    (a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
-  );
-
-  let deepFocusSeconds = 0, deepFocusSessions = 0, totalSessions = 0;
-  let interruptedSessions = 0, themeSwitches = 0, resumeEvents = 0;
-  let distractionEvents = 0, distractionSeconds = 0, contextWorkSeconds = 0;
-  let totalDuration = 0, themeCoveredDuration = 0;
+  const intervals = clipOverlaps(splitAtMidnight(samples));
   const sessions: FocusSession[] = [];
 
-  let sessStart = '';
-  let sessEnd = '';
-  let sessTheme: string | null = null;
-  let sessFocusDuration = 0;
-  let sessTotalDuration = 0;
-  let sessHasInterruption = false;
-  let sessHasFocus = false;
-  let hasActiveSession = false;
-  let lastEndedTheme: string | null = null;
+  let deep_focus_seconds = 0;
+  let interrupted_sessions = 0;
+  let theme_switches = 0;
+  let resume_events = 0;
+  let distraction_events = 0;
+  let distraction_seconds = 0;
+  let context_work_seconds = 0;
 
-  function finalizeSession() {
-    if (!hasActiveSession || !sessHasFocus) {
-      if (hasActiveSession) lastEndedTheme = sessTheme;
-      hasActiveSession = false;
-      return;
-    }
+  let current: {
+    start: number;
+    end: number;
+    theme: string | null;
+    focusSeconds: number;
+    interrupted: boolean;
+  } | null = null;
+
+  let pendingResumeTheme: string | null | undefined;
+  let consecutiveUncertain = 0;
+  let lastCloseReason: 'theme' | 'context' | 'other' | null = null;
+
+  const closeSession = (interrupted: boolean, reason: 'theme' | 'context' | 'other' = 'other') => {
+    if (!current) return;
+    const duration = Math.round(current.focusSeconds);
+    const is_deep = duration >= THRESHOLDS.deepFocusMinSeconds;
     sessions.push({
-      start_at: sessStart, end_at: sessEnd,
-      duration_seconds: sessTotalDuration, category: 'Focus',
-      theme_hint: sessTheme, interrupted: sessHasInterruption,
-      is_deep: sessFocusDuration >= THRESHOLDS.DEEP,
+      start_at: new Date(current.start).toISOString(),
+      end_at: new Date(current.end).toISOString(),
+      duration_seconds: duration,
+      theme: current.theme,
+      interrupted: interrupted || current.interrupted,
+      is_deep,
     });
-    totalSessions++;
-    if (sessHasInterruption) interruptedSessions++;
-    if (sessFocusDuration >= THRESHOLDS.DEEP) {
-      deepFocusSeconds += sessFocusDuration;
-      deepFocusSessions++;
-    }
-    lastEndedTheme = sessTheme;
-    hasActiveSession = false;
-  }
+    if (interrupted || current.interrupted) interrupted_sessions += 1;
+    if (is_deep) deep_focus_seconds += duration;
+    pendingResumeTheme = current.theme;
+    lastCloseReason = reason;
+    current = null;
+    consecutiveUncertain = 0;
+  };
 
-  function startSession(s: ActivitySample, focusDur: number) {
-    const end = new Date(new Date(s.start_at).getTime() + s.duration_seconds * 1000);
-    sessStart = s.start_at;
-    sessEnd = end.toISOString();
-    sessTheme = s.theme_hint ?? null;
-    sessFocusDuration = focusDur;
-    sessTotalDuration = s.duration_seconds;
-    sessHasInterruption = false;
-    sessHasFocus = focusDur > 0;
-    hasActiveSession = true;
-  }
+  for (const interval of intervals) {
+    const seconds = Math.round((interval.end - interval.start) / 1000);
 
-  for (const sample of sorted) {
-    const isFocus = FOCUS_ELIGIBLE.has(sample.category);
-    const isContext = CONTEXT_CATEGORIES.has(sample.category);
-    const isNeutral = NEUTRAL_CATEGORIES.has(sample.category);
-    const isDistraction = DISTRACTION_ELIGIBLE.has(sample.category) &&
-      sample.duration_seconds >= THRESHOLDS.NON_WORK_SUSTAINED;
-
-    totalDuration += sample.duration_seconds;
-    if (sample.theme_hint) themeCoveredDuration += sample.duration_seconds;
-    if (isContext) contextWorkSeconds += sample.duration_seconds;
-    if (isDistraction) { distractionEvents++; distractionSeconds += sample.duration_seconds; }
-
-    const sampleStart = new Date(sample.start_at).getTime();
-    const sampleEnd = sampleStart + sample.duration_seconds * 1000;
-
-    // Check if this sample itself crosses midnight
-    if (crossesMidnight(sampleStart, sample.duration_seconds)) {
-      finalizeSession();
-      // Count as 2 sessions (split at midnight boundary)
-      totalSessions += 2;
-      if (isFocus) {
-        deepFocusSeconds += sample.duration_seconds;
-        if (sample.duration_seconds >= THRESHOLDS.DEEP) deepFocusSessions += 2;
+    if (isFocus(interval.category)) {
+      consecutiveUncertain = 0;
+      if (current && dayKey(current.start) !== dayKey(interval.start)) {
+        closeSession(false);
       }
-      sessions.push({
-        start_at: sample.start_at,
-        end_at: new Date(sampleEnd).toISOString(),
-        duration_seconds: sample.duration_seconds,
-        category: sample.category,
-        theme_hint: sample.theme_hint ?? null,
-        interrupted: false,
-        is_deep: sample.duration_seconds >= THRESHOLDS.DEEP,
-      });
-      lastEndedTheme = sample.theme_hint ?? null;
-      continue;
-    }
 
-    // Check if gap from previous session crosses midnight
-    if (hasActiveSession) {
-      const sessEndDate = new Date(sessEnd);
-      const sampleStartDate = new Date(sampleStart);
-      if (sessEndDate.getDate() !== sampleStartDate.getDate() && sampleStart > sessEndDate.getTime()) {
-        finalizeSession();
-      }
-    }
-
-    if (isDistraction) {
-      finalizeSession();
-      continue;
-    }
-
-    if (isContext) {
-      if (hasActiveSession) {
-        finalizeSession();
-      }
-      continue;
-    }
-
-    if (isNeutral) {
-      if (sample.duration_seconds <= THRESHOLDS.GRACE_BREAK) {
-        if (hasActiveSession) {
-          sessTotalDuration += sample.duration_seconds;
-          sessEnd = new Date(sampleEnd).toISOString();
-          sessHasInterruption = true;
+      if (current) {
+        if (current.theme && interval.theme && current.theme !== interval.theme) {
+          closeSession(true, 'theme');
+          theme_switches += 1;
         }
+      }
+
+      if (!current) {
+        if (
+          lastCloseReason === 'context' &&
+          pendingResumeTheme &&
+          interval.theme &&
+          interval.theme !== pendingResumeTheme
+        ) {
+          theme_switches += 1;
+        }
+        if (
+          pendingResumeTheme !== undefined &&
+          pendingResumeTheme !== null &&
+          interval.theme === pendingResumeTheme
+        ) {
+          resume_events += 1;
+        }
+        current = {
+          start: interval.start,
+          end: interval.end,
+          theme: interval.theme,
+          focusSeconds: seconds,
+          interrupted: false,
+        };
+        lastCloseReason = null;
       } else {
-        finalizeSession();
+        current.end = interval.end;
+        current.focusSeconds += seconds;
+        if (!current.theme && interval.theme) current.theme = interval.theme;
+      }
+      pendingResumeTheme = undefined;
+      continue;
+    }
+
+    if (isGrace(interval.category, seconds) && current && consecutiveUncertain === 0) {
+      consecutiveUncertain += 1;
+      current.interrupted = true;
+      current.end = interval.end;
+      continue;
+    }
+
+    if (isUncertain(interval.category)) {
+      consecutiveUncertain += 1;
+      if (current) closeSession(true);
+      pendingResumeTheme = undefined;
+      continue;
+    }
+
+    consecutiveUncertain = 0;
+
+    if (isContext(interval.category)) {
+      context_work_seconds += seconds;
+      if (current) closeSession(true, 'context');
+      continue;
+    }
+
+    if (isDistraction(interval.category, seconds)) {
+      distraction_events += 1;
+      distraction_seconds += seconds;
+      if (current) closeSession(true);
+      pendingResumeTheme = undefined;
+      continue;
+    }
+
+    if (interval.category === 'Browsing') {
+      if (current) {
+        current.interrupted = true;
+        current.end = interval.end;
       }
       continue;
     }
 
-    if (isFocus) {
-      if (!hasActiveSession) {
-        // Check if this is a resume after context/distraction break
-        if (lastEndedTheme && sample.theme_hint && lastEndedTheme !== sample.theme_hint) {
-          themeSwitches++;
-        }
-        if (lastEndedTheme) resumeEvents++;
-        startSession(sample, sample.duration_seconds);
-        continue;
-      }
-
-      const sameTheme = sample.theme_hint && sessTheme && sample.theme_hint === sessTheme;
-      const continuesTheme = sameTheme || !sample.theme_hint;
-
-      if (continuesTheme) {
-        sessFocusDuration += sample.duration_seconds;
-        sessTotalDuration += sample.duration_seconds;
-        sessEnd = new Date(sampleEnd).toISOString();
-        if (!sessTheme && sample.theme_hint) sessTheme = sample.theme_hint;
-        continue;
-      }
-
-      // Theme change
-      if (sample.theme_hint && sessTheme && sample.theme_hint !== sessTheme) {
-        themeSwitches++;
-      }
-      resumeEvents++;
-      finalizeSession();
-      startSession(sample, sample.duration_seconds);
-    }
+    if (current) closeSession(true);
   }
 
-  finalizeSession();
+  closeSession(false);
 
   return {
-    deep_focus_seconds: deepFocusSeconds, deep_focus_sessions: deepFocusSessions,
-    total_sessions: totalSessions, interrupted_sessions: interruptedSessions,
-    theme_switches: themeSwitches, resume_events: resumeEvents,
-    distraction_events: distractionEvents, distraction_seconds: distractionSeconds,
-    context_work_seconds: contextWorkSeconds,
-    fragmentation_pct: totalSessions > 1 ? Math.round(((totalSessions - 1) / totalSessions) * 100) : 0,
-    explicit_theme_coverage_pct: totalDuration > 0 ? Math.round((themeCoveredDuration / totalDuration) * 100) : 0,
-    average_resume_seconds: null, sessions, proxy_disclaimer: PROXY_DISCLAIMER,
+    deep_focus_seconds,
+    deep_focus_sessions: sessions.filter((s) => s.is_deep).length,
+    total_sessions: sessions.length,
+    interrupted_sessions,
+    theme_switches,
+    resume_events,
+    distraction_events,
+    distraction_seconds,
+    context_work_seconds,
+    sessions,
+    proxy_disclaimer: PROXY_DISCLAIMER,
   };
 }

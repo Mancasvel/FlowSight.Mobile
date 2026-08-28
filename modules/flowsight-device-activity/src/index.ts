@@ -1,143 +1,201 @@
-﻿/**
- * Device Activity Module — Expo Module for platform-specific device activity tracking.
+/**
+ * Device Activity Module — Screen Time (iOS) / UsageStats (Android).
  *
- * iOS: Screen Time / Family Controls (requires Apple entitlement)
- * Android: UsageStatsManager (requires Usage Access permission)
- *
- * This module provides a unified API for both platforms.
- * The base app works without this module — it's an optional enhancement.
+ * iOS cannot return app names to JavaScript. Per-app breakdown is rendered
+ * inside a Device Activity Report Extension via DeviceActivityReportView.
+ * Expo Go does not include this native module; use `npx expo run:ios`.
  */
 
-import { Platform, NativeModules } from 'react-native';
+import { Platform } from 'react-native';
+
+export {
+  DeviceActivityReportView,
+  type DeviceActivityReportViewProps,
+} from './DeviceActivityReportView';
 
 export interface DeviceActivityData {
-  packageName: string;      // Android package or iOS opaque token
-  appName: string;          // Human-readable name (Android only, empty on iOS)
+  packageName: string;
+  appName: string;
   usageSeconds: number;
-  lastUsed: string;         // ISO 8601
+  lastUsed: string;
 }
 
 export interface DeviceActivityPermission {
   granted: boolean;
   platform: 'ios' | 'android';
   method: 'family_controls' | 'usage_stats' | 'none';
+  status?: string;
+  error?: string;
 }
 
-/**
- * Check if device activity tracking is available on this platform.
- */
+export type SessionWindow = {
+  startMs: number;
+  endMs: number;
+};
+
+type NativeModule = {
+  isAvailable: () => Promise<boolean>;
+  checkAuthorization: () => Promise<DeviceActivityPermission & Record<string, unknown>>;
+  requestAuthorization: () => Promise<DeviceActivityPermission & Record<string, unknown>>;
+  hasSelection: () => Promise<boolean>;
+  presentActivityPicker: () => Promise<{ saved: boolean; error?: string }>;
+  startSessionMonitoring: () => Promise<{ started: boolean; startMs: number; error?: string }>;
+  stopSessionMonitoring: () => Promise<{ stopped: boolean; startMs: number; endMs: number }>;
+  getLastSessionWindow: () => Promise<SessionWindow | null>;
+  getActivity: (startDateMs: number, endDateMs: number) => Promise<DeviceActivityData[]>;
+  getTrackingStatus: () => Promise<{ isTracking: boolean; platform: string; method: string }>;
+};
+
+function getNative(): NativeModule | null {
+  try {
+    const core = require('expo-modules-core') as Record<string, unknown>;
+    const optional = core.requireOptionalNativeModule as
+      | ((name: string) => NativeModule | null)
+      | undefined;
+    if (typeof optional === 'function') {
+      return optional('FlowSightDeviceActivity');
+    }
+    const required = core.requireNativeModule as ((name: string) => NativeModule) | undefined;
+    return required ? required('FlowSightDeviceActivity') : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isNativeDeviceActivityAvailable(): boolean {
+  return getNative() != null;
+}
+
 export function isDeviceActivityAvailable(): boolean {
   return Platform.OS === 'ios' || Platform.OS === 'android';
 }
 
-/**
- * Check current permission status.
- */
+function fallbackPermission(granted = false): DeviceActivityPermission {
+  if (Platform.OS === 'ios') {
+    return { granted, platform: 'ios', method: 'family_controls' };
+  }
+  if (Platform.OS === 'android') {
+    return { granted, platform: 'android', method: 'usage_stats' };
+  }
+  return { granted: false, platform: 'ios', method: 'none' };
+}
+
 export async function checkDeviceActivityPermission(): Promise<DeviceActivityPermission> {
-  if (Platform.OS === 'ios') {
-    // iOS: Check Family Controls authorization
-    // This requires the Family Controls entitlement from Apple
-    // In production, this would call the native Swift module
+  const native = getNative();
+  if (!native) return fallbackPermission(false);
+  try {
+    const result = await native.checkAuthorization();
     return {
-      granted: false,
-      platform: 'ios',
-      method: 'family_controls',
+      granted: Boolean(result.granted),
+      platform: (result.platform as DeviceActivityPermission['platform']) ?? fallbackPermission().platform,
+      method: (result.method as DeviceActivityPermission['method']) ?? fallbackPermission().method,
+      status: typeof result.status === 'string' ? result.status : undefined,
+      error: typeof result.error === 'string' ? result.error : undefined,
     };
+  } catch {
+    return fallbackPermission(false);
   }
-
-  if (Platform.OS === 'android') {
-    // Android: Check Usage Access permission
-    // This requires the user to grant Usage Access in Settings
-    // In production, this would call the native Kotlin module
-    return {
-      granted: false,
-      platform: 'android',
-      method: 'usage_stats',
-    };
-  }
-
-  return { granted: false, platform: Platform.OS as any, method: 'none' };
 }
 
-/**
- * Request device activity permission.
- *
- * iOS: Opens Family Controls authorization dialog
- * Android: Opens Usage Access Settings
- */
 export async function requestDeviceActivityPermission(): Promise<DeviceActivityPermission> {
-  if (Platform.OS === 'ios') {
-    // In production: call native module to request Family Controls authorization
-    // The user must grant individual authorization
-    // If entitlement is not approved, this will fail gracefully
+  const native = getNative();
+  if (!native) return fallbackPermission(false);
+  try {
+    const result = await native.requestAuthorization();
     return {
-      granted: false,
-      platform: 'ios',
-      method: 'family_controls',
+      granted: Boolean(result.granted),
+      platform: (result.platform as DeviceActivityPermission['platform']) ?? fallbackPermission().platform,
+      method: (result.method as DeviceActivityPermission['method']) ?? fallbackPermission().method,
+      status: typeof result.status === 'string' ? result.status : undefined,
+      error: typeof result.error === 'string' ? result.error : undefined,
     };
+  } catch {
+    return fallbackPermission(false);
   }
-
-  if (Platform.OS === 'android') {
-    // In production: open Usage Access settings
-    // The user must manually enable the permission
-    return {
-      granted: false,
-      platform: 'android',
-      method: 'usage_stats',
-    };
-  }
-
-  return { granted: false, platform: Platform.OS as any, method: 'none' };
 }
 
-/**
- * Get device activity data for a given time range.
- *
- * iOS: Returns opaque app tokens (no app names per Apple policy)
- * Android: Returns package names and usage time
- */
+export async function hasActivitySelection(): Promise<boolean> {
+  const native = getNative();
+  if (!native?.hasSelection) return false;
+  try {
+    return Boolean(await native.hasSelection());
+  } catch {
+    return false;
+  }
+}
+
+export async function presentActivityPicker(): Promise<{ saved: boolean }> {
+  const native = getNative();
+  if (!native?.presentActivityPicker) return { saved: false };
+  try {
+    return await native.presentActivityPicker();
+  } catch {
+    return { saved: false };
+  }
+}
+
+export async function startSessionMonitoring(): Promise<{
+  started: boolean;
+  startMs: number;
+  error?: string;
+}> {
+  const native = getNative();
+  if (!native?.startSessionMonitoring) {
+    return { started: false, startMs: Date.now() };
+  }
+  return native.startSessionMonitoring();
+}
+
+export async function stopSessionMonitoring(): Promise<SessionWindow | null> {
+  const native = getNative();
+  if (!native?.stopSessionMonitoring) return null;
+  try {
+    const result = await native.stopSessionMonitoring();
+    if (!result?.startMs || result.startMs <= 0 || !result.endMs) return null;
+    return { startMs: result.startMs, endMs: result.endMs };
+  } catch {
+    return null;
+  }
+}
+
+export async function getLastSessionWindow(): Promise<SessionWindow | null> {
+  const native = getNative();
+  if (!native?.getLastSessionWindow) return null;
+  try {
+    return await native.getLastSessionWindow();
+  } catch {
+    return null;
+  }
+}
+
 export async function getDeviceActivity(
   startDate: Date,
   endDate: Date
 ): Promise<DeviceActivityData[]> {
   const permission = await checkDeviceActivityPermission();
-  if (!permission.granted) {
+  if (!permission.granted) return [];
+
+  const native = getNative();
+  if (!native) return [];
+  try {
+    return await native.getActivity(startDate.getTime(), endDate.getTime());
+  } catch {
     return [];
   }
-
-  if (Platform.OS === 'ios') {
-    // In production: call native Swift module
-    // Returns opaque tokens, not app names
-    // iOS DeviceActivity data is limited to:
-    // - Total usage time per app category
-    // - Number of pickups
-    // - Notification count
-    // Does NOT include: window titles, URLs, content, screenshots
-    return [];
-  }
-
-  if (Platform.OS === 'android') {
-    // In production: call native Kotlin module
-    // Uses UsageStatsManager to get app usage data
-    // Returns: package name, usage time, last used
-    // Does NOT include: window content, intent, productivity inference
-    return [];
-  }
-
-  return [];
 }
 
-/**
- * Get the current tracking status.
- */
 export async function getTrackingStatus(): Promise<{
   isTracking: boolean;
   platform: string;
   method: string;
 }> {
-  return {
-    isTracking: false,
-    platform: Platform.OS,
-    method: Platform.OS === 'ios' ? 'family_controls' : 'usage_stats',
-  };
+  const native = getNative();
+  if (!native?.getTrackingStatus) {
+    return {
+      isTracking: false,
+      platform: Platform.OS,
+      method: Platform.OS === 'ios' ? 'family_controls' : 'usage_stats',
+    };
+  }
+  return native.getTrackingStatus();
 }

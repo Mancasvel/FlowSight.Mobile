@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Local Database — SQLite storage for offline-first data.
  *
  * Uses expo-sqlite for activity events, sync queue, preferences,
@@ -6,6 +6,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
+import { createId } from '@/utils/id';
 
 const DB_NAME = 'flowsight.db';
 
@@ -98,6 +99,24 @@ async function initializeDatabase(database: SQLite.SQLiteDatabase) {
       accumulated_seconds INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  const columns = await database.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(activity_events)'
+  );
+  if (!columns.some((column) => column.name === 'pause_count')) {
+    await database.execAsync(
+      'ALTER TABLE activity_events ADD COLUMN pause_count INTEGER NOT NULL DEFAULT 0'
+    );
+  }
+
+  const sessionColumns = await database.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(active_session)'
+  );
+  if (!sessionColumns.some((column) => column.name === 'pause_count')) {
+    await database.execAsync(
+      'ALTER TABLE active_session ADD COLUMN pause_count INTEGER NOT NULL DEFAULT 0'
+    );
+  }
 }
 
 // ─── Activity Events ──────────────────────────────────────────────────────────
@@ -119,6 +138,7 @@ export async function insertActivityEvent(event: {
   ticket_ref?: string | null;
   description?: string | null;
   confidence: number;
+  pause_count?: number;
 }) {
   const db = await getDatabase();
   const now = new Date().toISOString();
@@ -128,24 +148,27 @@ export async function insertActivityEvent(event: {
       id, client_event_id, user_id, device_id, source, source_platform,
       capture_source, start_at, end_at, timezone, duration_seconds,
       category, task_label, ticket_ref, description, confidence,
-      schema_version, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      pause_count, schema_version, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
     [
       event.id, event.client_event_id, event.user_id ?? null,
       event.device_id, event.source, event.source_platform,
       event.capture_source, event.start_at, event.end_at,
       event.timezone, event.duration_seconds, event.category,
       event.task_label ?? null, event.ticket_ref ?? null,
-      event.description ?? null, event.confidence, now, now,
+      event.description ?? null, event.confidence,
+      event.pause_count ?? 0, now, now,
     ]
   );
 
-  // Add to sync queue
-  await db.runAsync(
-    `INSERT INTO sync_queue (id, event_id, status, created_at, updated_at)
-     VALUES (?, ?, 'pending', ?, ?)`,
-    [crypto.randomUUID(), event.id, now, now]
-  );
+  const syncConsent = await getPreference('consent_cloud_sync');
+  if (syncConsent === 'true') {
+    await db.runAsync(
+      `INSERT INTO sync_queue (id, event_id, status, created_at, updated_at)
+       VALUES (?, ?, 'pending', ?, ?)`,
+      [createId(), event.id, now, now]
+    );
+  }
 }
 
 export async function getUnsyncedEvents(limit = 50) {
@@ -203,15 +226,16 @@ export async function saveActiveSession(session: {
   ticket_ref?: string;
   paused_at?: string;
   accumulated_seconds: number;
+  pause_count?: number;
 }) {
   const db = await getDatabase();
   await db.runAsync(`DELETE FROM active_session`);
   await db.runAsync(
-    `INSERT INTO active_session (id, started_at, category, task_label, ticket_ref, paused_at, accumulated_seconds)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO active_session (id, started_at, category, task_label, ticket_ref, paused_at, accumulated_seconds, pause_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [session.id, session.started_at, session.category ?? null,
      session.task_label ?? null, session.ticket_ref ?? null,
-     session.paused_at ?? null, session.accumulated_seconds]
+     session.paused_at ?? null, session.accumulated_seconds, session.pause_count ?? 0]
   );
 }
 
@@ -225,6 +249,7 @@ export async function getActiveSession() {
     ticket_ref: string | null;
     paused_at: string | null;
     accumulated_seconds: number;
+    pause_count: number;
   }>(`SELECT * FROM active_session LIMIT 1`);
 }
 
@@ -303,5 +328,22 @@ export async function getWeeklyStats(startDate: string, endDate: string) {
      GROUP BY date(start_at)
      ORDER BY date ASC`,
     [startDate, endDate]
+  );
+}
+
+export async function getRecentSessions(limit = 14) {
+  const db = await getDatabase();
+  return db.getAllAsync<{
+    id: string;
+    start_at: string;
+    end_at: string;
+    duration_seconds: number;
+    pause_count: number;
+  }>(
+    `SELECT id, start_at, end_at, duration_seconds, COALESCE(pause_count, 0) as pause_count
+     FROM activity_events
+     ORDER BY start_at DESC
+     LIMIT ?`,
+    [limit]
   );
 }

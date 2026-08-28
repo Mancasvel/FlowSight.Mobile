@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useAuth — Hook for authentication state.
  */
 
@@ -9,7 +9,7 @@ import {
   signInWithEmail,
   signUpWithEmail,
   signOut,
-} from '@/services';
+} from '@/services/auth';
 import type { User } from '@supabase/supabase-js';
 
 export function useAuth() {

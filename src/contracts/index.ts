@@ -1,4 +1,4 @@
-﻿/**
+/**
  * FlowSight Contracts — Zod schemas and types shared between desktop and mobile.
  */
 

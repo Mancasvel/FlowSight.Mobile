@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Format utilities for duration, dates, and numbers.
  */
 

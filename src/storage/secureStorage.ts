@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Secure Storage — Token and secret management via expo-secure-store.
  *
  * Backed by Keychain (iOS) and Android Keystore.
@@ -6,6 +6,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import { createId } from '@/utils/id';
 
 const KEYS = {
   ACCESS_TOKEN: 'flowsight_access_token',
@@ -43,7 +44,7 @@ export async function clearSession(): Promise<void> {
 export async function getDeviceId(): Promise<string> {
   let deviceId = await SecureStore.getItemAsync(KEYS.DEVICE_ID);
   if (!deviceId) {
-    deviceId = crypto.randomUUID();
+    deviceId = createId();
     await SecureStore.setItemAsync(KEYS.DEVICE_ID, deviceId);
   }
   return deviceId;
@@ -52,7 +53,7 @@ export async function getDeviceId(): Promise<string> {
 export async function getInstallationId(): Promise<string> {
   let installationId = await SecureStore.getItemAsync(KEYS.INSTALLATION_ID);
   if (!installationId) {
-    installationId = crypto.randomUUID();
+    installationId = createId();
     await SecureStore.setItemAsync(KEYS.INSTALLATION_ID, installationId);
   }
   return installationId;

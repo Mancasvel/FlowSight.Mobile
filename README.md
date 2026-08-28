@@ -1,29 +1,29 @@
-﻿# FlowSight Mobile
+# FlowSight Mobile
 
-**Privacy-first work activity tracking for iOS and Android.**
+**Privacy-first work activity tracking for iPhone.**
 
-Companion app to [FlowSight Desktop](https://github.com/Mancasvel/FlowSight.AI) — tracks focus time, identifies work patterns, and provides AI coaching, all while keeping your data private.
+Companion app to [FlowSight Desktop](https://github.com/Mancasvel/FlowSight.AI) — tracks focus time, identifies work patterns, and provides AI coaching, all while keeping your data private. iOS only (iPhone, iOS 16+).
 
 ---
 
 ## Tech Stack
 
-### Frontend — Cross-Platform Native
+### Frontend — iPhone
 
 | Technology | Version | Purpose |
 |-----------|---------|---------|
-| **React Native** | 0.79 | Native UI framework — compiles to real iOS (UIKit) and Android (Views) components, not WebView |
-| **Expo SDK** | 53 | Build toolchain, native module system, OTA updates, EAS Build |
-| **Expo Router** | v5 | File-based routing with typed routes, deep links, and universal links |
-| **TypeScript** | 5.6 | Strict mode, zero `any`, full type safety across the codebase |
-| **React** | 19.0 | UI library with concurrent features |
+| **React Native** | 0.79 | Native UIKit UI |
+| **Expo SDK** | 53 | Toolchain, native modules, EAS Build |
+| **Expo Router** | v5 | File-based routing with typed routes |
+| **TypeScript** | 5.8 | Strict mode |
+| **React** | 19.0 | UI library |
 
 ### State & Data
 
 | Technology | Purpose |
 |-----------|---------|
 | **expo-sqlite** | Local offline database — stores activity events, sync queue, preferences, coach history |
-| **expo-secure-store** | Secure token storage — backed by Keychain (iOS) and Android Keystore |
+| **expo-secure-store** | Secure token storage — Keychain |
 | **Supabase JS** | Auth (PKCE), Postgres queries, Edge Functions, Realtime |
 | **Zustand** | Minimal state management for ephemeral UI state only (no remote data duplication) |
 | **Zod** | Runtime payload validation at all network/storage boundaries |
@@ -38,13 +38,13 @@ Companion app to [FlowSight Desktop](https://github.com/Mancasvel/FlowSight.AI) 
 | **expo-haptics** | Discrete haptic feedback on timer start/pause/stop |
 | **expo-localization** | i18n ready, English as canonical language |
 
-### Native Modules (Platform-Specific)
+### Native (iPhone)
 
-| Module | iOS | Android |
-|--------|-----|---------|
-| **flowsight-device-activity** | Swift — Family Controls / Screen Time API | Kotlin — UsageStatsManager |
-| **Auth** | ASWebAuthenticationSession | Custom Tabs |
-| **Storage** | Keychain | Android Keystore |
+| Module | Implementation |
+|--------|----------------|
+| **flowsight-device-activity** | Swift — Family Controls / DeviceActivity report |
+| **Auth** | ASWebAuthenticationSession |
+| **Storage** | Keychain |
 
 ### Backend
 
@@ -62,21 +62,21 @@ Companion app to [FlowSight Desktop](https://github.com/Mancasvel/FlowSight.AI) 
 | **Vitest** | Unit tests for pure logic (focus-spec, contracts, format) |
 | **React Native Testing Library** | Component tests |
 | **Maestro** | E2E flow tests |
-| **XCUITest / Espresso** | Native module tests (permissions, secure storage) |
+| **XCUITest** | Native module tests (permissions, Keychain) |
 
 ### Build & Deploy
 
 | Tool | Purpose |
 |------|---------|
-| **EAS Build** | Cloud builds for iOS and Android with 3 channels (development, preview, production) |
-| **EAS Submit** | Automated submission to App Store and Play Store |
-| **GitHub Actions** | CI/CD — lint, typecheck, test, build on every push |
+| **EAS Build** | Cloud iPhone builds (development, preview, production) |
+| **EAS Submit** | App Store submission |
+| **GitHub Actions** | CI — lint, typecheck, test |
 
 ---
 
 ## Features
 
-- **Manual timer** — Start/stop focus sessions with category labels
+- **Manual timer** — Start/stop focus sessions; iOS Screen Time report after Stop (native build)
 - **Deep Focus detection** — Canonical semantics ported from the desktop Rust agent
 - **Insights** — Daily/weekly summaries, category breakdowns, fragmentation metrics
 - **AI Coach** — Cloud-powered work pattern coaching (requires subscription)
@@ -86,47 +86,47 @@ Companion app to [FlowSight Desktop](https://github.com/Mancasvel/FlowSight.AI) 
 
 ---
 
-## Quick Start
+## Quick Start (iPhone)
+
+Expo Go cannot read Screen Time. Use a native development build on a physical iPhone.
 
 ```bash
-# Install dependencies
 npm install
+cp .env.example .env
+# Fill EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY
 
-# Configure environment
-cp .env.example .env.local
-# Edit .env.local with your Supabase credentials
+# One-time: generate native iOS project and install on a connected iPhone
+npx expo prebuild -p ios
+npx expo run:ios --device
 
-# Start development
-npx expo start
-
-# Run on specific platform
-npx expo run:ios
-npx expo run:android
+# Later sessions (native app already installed)
+npm start
 ```
+
+In Xcode, enable **Family Controls (Development)** on:
+
+- `ai.flowsight.mobile`
+- `ai.flowsight.mobile.DeviceActivityReport`
+- `ai.flowsight.mobile.DeviceActivityMonitor`
+
+First Start: Screen Time permission, then pick apps once. Stop shows time per app.
 
 ## Testing
 
 ```bash
-# Run all tests (43 tests)
 npm test
-
-# Run with coverage
-npm run test:coverage
-
-# Type check
 npm run typecheck
 ```
 
-## Building
+## App Store
+
+1. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list), enable Family Controls on the three App IDs above. For TestFlight/App Store, request [Family Controls distribution](https://developer.apple.com/contact/request/family-controls-distribution) for each ID.
+2. Set `submit.production.ios.ascAppId` in `eas.json` to your App Store Connect app id.
+3. Build and submit:
 
 ```bash
-# Preview build (TestFlight / Internal Testing)
-npm run build:preview:ios
-npm run build:preview:android
-
-# Production build
 npm run build:production:ios
-npm run build:production:android
+npm run submit:ios
 ```
 
 ---
@@ -162,10 +162,9 @@ FlowSight.Mobile/
 │   └── utils/                    # Format utilities
 ├── modules/
 │   └── flowsight-device-activity/
-│       ├── ios/                  # Swift — Family Controls
-│       ├── android/              # Kotlin — UsageStatsManager
-│       └── src/                  # Shared API
-├── __tests__/                    # 43 tests (focus-spec, contracts, format)
+│       ├── ios/                  # Swift — Family Controls + report extension
+│       └── src/                  # JS API
+├── __tests__/                    # Unit tests (focus-spec, contracts, format, timer)
 ├── .github/workflows/            # CI/CD (ci.yml, release.yml)
 ├── docs/                         # Architecture, security, DPIA
 ├── eas.json                      # EAS Build config
@@ -212,7 +211,7 @@ FlowSight.Mobile/
 - **No keystrokes** — No keyboard monitoring
 - **Per-purpose consent** — Tracking, sync, cloud AI, analytics are separate opt-ins
 - **Local-first** — All data stored in SQLite, syncs only with consent
-- **Secure storage** — Tokens in Keychain/Keystore, never AsyncStorage
+- **Secure storage** — Tokens in Keychain, never AsyncStorage
 - **No secrets in bundle** — Only EXPO_PUBLIC_* variables (Supabase URL + anon key)
 
 See [PRIVACY.md](PRIVACY.md) for the full privacy notice.
@@ -224,7 +223,7 @@ See [PRIVACY.md](PRIVACY.md) for the full privacy notice.
 | Repository | Purpose |
 |-----------|---------|
 | [FlowSight.AI](https://github.com/Mancasvel/FlowSight.AI) | Desktop agent (Tauri + Rust + Windows) |
-| [FlowSight.Mobile](https://github.com/Mancasvel/FlowSight.Mobile) | Mobile app (React Native + Expo) — this repo |
+| [FlowSight.Mobile](https://github.com/Mancasvel/FlowSight.Mobile) | iPhone app (React Native + Expo) — this repo |
 
 ---
 

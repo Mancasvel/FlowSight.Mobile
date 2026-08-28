@@ -7,8 +7,8 @@
 
 import { getPreference, setPreference } from '@/storage';
 import { clearSession } from '@/storage';
-import { getClient } from './auth';
-import { clearEntitlementsCache } from './entitlements';
+import { getClient } from '@/services/auth';
+import { clearEntitlementsCache } from '@/services/entitlements';
 
 export interface PrivacyConsent {
   tracking: boolean;
@@ -19,7 +19,7 @@ export interface PrivacyConsent {
   consentedAt: string;
 }
 
-const CURRENT_NOTICE_VERSION = '2026-08-23';
+const CURRENT_NOTICE_VERSION = '2026-08-28';
 
 /**
  * Get current privacy consent status.
@@ -97,8 +97,9 @@ export async function exportLocalData(): Promise<Record<string, unknown>> {
     activityEvents: events,
     preferences: preferences,
     coachMessages: coachMessages,
-    privacyNote: 'This export contains your local FlowSight data. ' +
-      'Cloud data (if any) is exported separately via the cloud account deletion flow.',
+    privacyNote: 'This export contains local FlowSight timer sessions and preferences. ' +
+      'Apple Screen Time (app names and per-app duration) is not stored here and cannot be exported. ' +
+      'Cloud data is included only if you opted in to sync and signed in.',
   };
 }
 
@@ -134,7 +135,7 @@ export async function deleteCloudAccount(): Promise<{ success: boolean; error?: 
     }
 
     const response = await fetch(
-      `${client.supabase.supabaseUrl}/functions/v1/privacy-rights`,
+      `${client.url}/functions/v1/privacy-rights`,
       {
         method: 'POST',
         headers: {

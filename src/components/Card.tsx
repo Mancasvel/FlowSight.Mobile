@@ -1,37 +1,51 @@
-/**
- * Card — Elevated surface with rounded corners and shadow.
- */
-
 import React from 'react';
-import { View, type ViewStyle, type StyleProp, type ViewProps } from 'react-native';
+import { View, StyleSheet, type ViewStyle } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '@/theme';
-import { radius, spacing, shadows } from '@/theme/tokens';
+import { radius, shadows, layout } from '@/theme/tokens';
 
-interface CardProps extends ViewProps {
+export function Card({
+  children,
+  style,
+}: {
   children: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-  variant?: 'default' | 'elevated' | 'flat';
-}
-
-export function Card({ children, style, variant = 'default', ...rest }: CardProps) {
+  style?: ViewStyle;
+}) {
   const { theme } = useTheme();
 
-  const baseStyle: ViewStyle = {
-    backgroundColor: variant === 'flat' ? theme.surfaceSecondary : theme.card,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-  };
-
-  const variantStyle: ViewStyle =
-    variant === 'elevated'
-      ? { ...shadows.md }
-      : variant === 'default'
-        ? { ...shadows.sm }
-        : {};
-
   return (
-    <View style={[baseStyle, variantStyle, style]} {...rest}>
+    <BlurView
+      intensity={42}
+      tint={theme.statusBar === 'dark' ? 'light' : 'dark'}
+      style={[
+        styles.card,
+        shadows.md,
+        {
+          backgroundColor: theme.card,
+          borderColor: theme.glassBorder,
+          shadowColor: theme.cardShadow,
+        },
+        style,
+      ]}
+    >
+      <View style={[styles.highlight, { backgroundColor: theme.glassHighlight }]} />
       {children}
-    </View>
+    </BlurView>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: layout.cardPadding,
+    overflow: 'hidden',
+  },
+  highlight: {
+    position: 'absolute',
+    top: 0,
+    left: 24,
+    right: 24,
+    height: StyleSheet.hairlineWidth,
+  },
+});

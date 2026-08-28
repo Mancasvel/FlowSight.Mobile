@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Device Service — Device registration and management.
  */
 

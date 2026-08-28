@@ -1,35 +1,34 @@
-/**
- * Input — Text input with consistent styling.
- */
-
 import React from 'react';
-import { TextInput, type TextInputProps, type ViewStyle } from 'react-native';
+import { TextInput, StyleSheet, type TextInputProps } from 'react-native';
 import { useTheme } from '@/theme';
-import { radius, spacing, fontSize } from '@/theme/tokens';
+import { radius, fontSize, layout } from '@/theme/tokens';
 
-interface InputProps extends TextInputProps {
-  containerStyle?: ViewStyle;
-}
-
-export function Input({ containerStyle, style, ...rest }: InputProps) {
+export function Input(props: TextInputProps) {
   const { theme } = useTheme();
 
   return (
     <TextInput
+      placeholderTextColor={theme.textTertiary}
+      {...props}
       style={[
+        styles.input,
         {
           backgroundColor: theme.surfaceSecondary,
-          borderRadius: radius.lg,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
-          fontSize: fontSize.base,
           color: theme.text,
-          minHeight: 48,
+          borderColor: theme.border,
         },
-        style,
+        props.style,
       ]}
-      placeholderTextColor={theme.textTertiary}
-      {...rest}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  input: {
+    minHeight: layout.touchTargetIOS,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: fontSize.base,
+  },
+});
