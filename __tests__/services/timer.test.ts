@@ -15,9 +15,15 @@ vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 const deviceActivity = vi.hoisted(() => ({
   startDeviceActivityCapture: vi.fn().mockResolvedValue({ started: false, warning: null }),
   stopDeviceActivityCapture: vi.fn().mockResolvedValue(null),
+  persistUsageSnapshot: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock('@/services/deviceActivity', () => deviceActivity);
+vi.mock('@/services/notifications', () => ({
+  cancelFocusGoalNotification: vi.fn().mockResolvedValue(undefined),
+  markFocusDayCompleted: vi.fn().mockResolvedValue(undefined),
+  scheduleFocusGoalNotification: vi.fn().mockResolvedValue(undefined),
+}));
 
 import {
   getElapsedSeconds,
@@ -88,7 +94,7 @@ describe('timer service', () => {
       expect.objectContaining({
         source: 'ios_device_activity',
         capture_source: 'device_activity',
-        category: 'General',
+        category: 'Focus',
       })
     );
   });

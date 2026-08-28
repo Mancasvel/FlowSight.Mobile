@@ -1,183 +1,222 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { hasActivitySelection, isNativeDeviceActivityAvailable } from '../../modules/flowsight-device-activity/src/index';
 import {
-  DeviceActivityReportView,
-  hasActivitySelection,
-  isNativeDeviceActivityAvailable,
-  presentActivityPicker,
-} from '../../modules/flowsight-device-activity/src/index';
-import { Screen, Card, Typography, Button } from '@/components';
+  Screen,
+  Card,
+  Typography,
+  MetricTile,
+  SectionHeader,
+  Notice,
+  HourlyBarChart,
+  WeekStrip,
+} from '@/components';
+import { persistUsageSnapshot } from '@/services/deviceActivity';
 import {
-  hydrateLastSessionWindow,
-  getLastSessionWindow,
-  type SessionWindow,
-} from '@/services/deviceActivity';
-import {
+  appsDuringSession,
+  hourlyBucketsFromSources,
+  loadHourlyAppUsage,
   loadRecentSessions,
   patternsFromSessions,
+  weekActivityFromSessions,
   type SessionPattern,
+  type StoredAppUsage,
   type StoredSession,
 } from '@/services/sessionInsights';
-import { formatDurationShort } from '@/utils/format';
+import { formatDurationShort, localDateKey } from '@/utils/format';
 import { useTheme } from '@/theme';
-import { radius, spacing } from '@/theme/tokens';
+import { spacing } from '@/theme/tokens';
 
 export default function InsightsScreen() {
   const { theme } = useTheme();
   const [sessions, setSessions] = useState<StoredSession[]>([]);
+  const [appUsage, setAppUsage] = useState<StoredAppUsage[]>([]);
   const [patterns, setPatterns] = useState<SessionPattern[]>([]);
-  const [sessionWindow, setSessionWindow] = useState<SessionWindow | null>(getLastSessionWindow);
-  const [reportEpoch, setReportEpoch] = useState(0);
   const [needsAppPicker, setNeedsAppPicker] = useState(false);
   const nativeScreenTime = isNativeDeviceActivityAvailable();
+  const todayKey = localDateKey(new Date());
   const todaySeconds = sessions
-    .filter((session) => session.start_at.slice(0, 10) === new Date().toISOString().slice(0, 10))
+    .filter((session) => localDateKey(new Date(session.start_at)) === todayKey)
     .reduce((sum, session) => sum + session.duration_seconds, 0);
+  const maxDuration = Math.max(1, ...sessions.slice(0, 8).map((session) => session.duration_seconds));
+  const hourBuckets = useMemo(
+    () => hourlyBucketsFromSources(sessions, appUsage),
+    [sessions, appUsage]
+  );
+  const weekDays = useMemo(() => weekActivityFromSessions(sessions), [sessions]);
+
+  const averageSeconds = useMemo(() => {
+    if (sessions.length === 0) return 0;
+    return Math.round(sessions.reduce((sum, session) => sum + session.duration_seconds, 0) / sessions.length);
+  }, [sessions]);
 
   useFocusEffect(
     useCallback(() => {
-      void loadRecentSessions().then((rows) => {
+      let cancelled = false;
+      const reload = async () => {
+        await persistUsageSnapshot();
+        const [rows, usage] = await Promise.all([
+          loadRecentSessions(),
+          loadHourlyAppUsage(localDateKey(new Date())),
+        ]);
+        if (cancelled) return;
         setSessions(rows);
+        setAppUsage(usage);
         setPatterns(patternsFromSessions(rows));
-      });
-      void hydrateLastSessionWindow().then((window) => {
-        if (window) setSessionWindow(window);
-      });
+      };
+      void reload();
       if (nativeScreenTime) {
-        void hasActivitySelection().then((selected) => setNeedsAppPicker(!selected));
+        void hasActivitySelection().then((selected) => {
+          if (!cancelled) setNeedsAppPicker(!selected);
+        });
       }
+      const interval = setInterval(() => {
+        void reload();
+      }, 12_000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
     }, [nativeScreenTime])
   );
-
-  const chooseApps = async () => {
-    const result = await presentActivityPicker();
-    if (result.saved) {
-      setNeedsAppPicker(false);
-      setReportEpoch((value) => value + 1);
-    }
-  };
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View>
-            <Typography variant="caption" style={{ color: theme.primary }}>START TO STOP</Typography>
-            <Typography variant="title">Insights</Typography>
-          </View>
-          <View style={[styles.headerIcon, { backgroundColor: theme.glassStrong, borderColor: theme.glassBorder }]}>
-            <Ionicons name="analytics-outline" size={22} color={theme.primary} />
-          </View>
+        <View style={styles.heroCopy}>
+          <Typography variant="kicker" color={theme.primary}>
+            Start to stop
+          </Typography>
+          <Typography variant="title">Insights</Typography>
+          <Typography variant="caption">
+            Patterns from your blocks. Apps used each hour stay in local SQLite.
+          </Typography>
         </View>
 
+        <WeekStrip days={weekDays} />
+
         <View style={styles.metrics}>
-          <Card style={styles.metricCard}>
-            <Typography variant="caption">Timed today</Typography>
-            <Typography variant="title" style={styles.metricValue}>
-              {formatDurationShort(todaySeconds)}
-            </Typography>
-          </Card>
-          <Card style={styles.metricCard}>
-            <Typography variant="caption">Sessions</Typography>
-            <Typography variant="title" style={styles.metricValue}>{sessions.length}</Typography>
-          </Card>
+          <MetricTile label="Timed today" value={formatDurationShort(todaySeconds)} hint="Across today's blocks" />
+          <MetricTile
+            label="Sessions"
+            value={sessions.length}
+            hint={sessions.length > 0 ? `Avg ${formatDurationShort(averageSeconds)}` : 'Recent window'}
+          />
         </View>
 
         <Card style={styles.reportCard}>
-          <Typography variant="subtitle">Last session timeline</Typography>
-          <Typography variant="caption">
-            Apple Screen Time between Start and Stop. App names never leave this iPhone.
-          </Typography>
-          {nativeScreenTime ? (
-            <>
-              {needsAppPicker ? (
-                <Typography variant="caption" style={styles.nativeHint}>
-                  Choose the apps to include. A blank picker means Apple reports zero time.
-                </Typography>
-              ) : null}
-              <Button
-                label={needsAppPicker ? 'Choose apps to measure' : 'Change measured apps'}
-                variant={needsAppPicker ? 'primary' : 'secondary'}
-                onPress={() => {
-                  void chooseApps();
-                }}
-              />
-              {sessionWindow ? (
-                <DeviceActivityReportView
-                  key={`${reportEpoch}-${sessionWindow.startMs}-${sessionWindow.endMs}`}
-                  startMs={sessionWindow.startMs}
-                  endMs={sessionWindow.endMs}
-                  segment="hourly"
-                  style={styles.reportView}
-                />
-              ) : (
-                <Typography variant="caption" style={styles.nativeHint}>
-                  Finish a session on Today to fill this timeline.
-                </Typography>
-              )}
-            </>
-          ) : (
-            <Typography variant="caption" style={styles.nativeHint}>
-              Per-app time needs the native iPhone build. Expo Go cannot read Screen Time.
-            </Typography>
-          )}
+          <SectionHeader
+            kicker="01"
+            title="Hourly timeline"
+            subtitle="Each color is an app in that hour. Saved on this iPhone."
+          />
+          <HourlyBarChart buckets={hourBuckets} />
+          {nativeScreenTime && needsAppPicker ? (
+            <Notice tone="info" icon="apps-outline">
+              Choose measured apps in You. Add work apps one by one, then Social or Entertainment as categories so those do not count as focus.
+            </Notice>
+          ) : null}
         </Card>
 
-        {patterns.map((pattern) => (
-          <Card key={pattern.id} style={styles.patternCard}>
-            <Ionicons name="pulse-outline" size={20} color={theme.primary} />
-            <View style={styles.patternCopy}>
-              <Typography variant="subtitle">{pattern.title}</Typography>
-              <Typography variant="caption">{pattern.body}</Typography>
-            </View>
-          </Card>
-        ))}
+        <View style={styles.patternBlock}>
+          <SectionHeader kicker="02" title="What the blocks say" />
+          {patterns.map((pattern, index) => (
+            <Card key={pattern.id} style={styles.patternCard}>
+              <Typography variant="kicker" color={theme.primary}>
+                {String(index + 1).padStart(2, '0')}
+              </Typography>
+              <View style={styles.patternCopy}>
+                <Typography variant="subtitle">{pattern.title}</Typography>
+                <Typography variant="caption">{pattern.body}</Typography>
+              </View>
+            </Card>
+          ))}
+        </View>
 
         {sessions.length > 0 ? (
           <Card style={styles.listCard}>
-            <Typography variant="subtitle">Recent blocks</Typography>
-            {sessions.slice(0, 8).map((session) => (
+            <SectionHeader kicker="03" title="Recent blocks" subtitle="Duration relative to your longest recent session." />
+            {sessions.slice(0, 8).map((session) => {
+              const apps = appsDuringSession(session, appUsage)
+                .slice(0, 3)
+                .map((app) => app.name)
+                .join(', ');
+              return (
               <View key={session.id} style={styles.sessionRow}>
-                <Typography style={styles.sessionWhen}>
-                  {new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(
-                    new Date(session.start_at)
-                  )}
-                </Typography>
-                <Typography variant="caption">
-                  {formatDurationShort(session.duration_seconds)}
-                  {session.pause_count > 0 ? ` · ${session.pause_count} pauses` : ''}
-                </Typography>
+                <View style={styles.sessionMeta}>
+                  <Typography>
+                    {new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(
+                      new Date(session.start_at)
+                    )}
+                  </Typography>
+                  <Typography variant="caption">
+                    {formatDurationShort(session.duration_seconds)}
+                    {session.pause_count > 0 ? `, ${session.pause_count} pauses` : ''}
+                  </Typography>
+                </View>
+                {apps ? (
+                  <Typography variant="caption">{apps}</Typography>
+                ) : session.category && session.category !== 'Focus' && session.category !== 'General' ? (
+                  <Typography variant="caption">{session.category}</Typography>
+                ) : null}
+                <View style={[styles.barTrack, { backgroundColor: theme.surfaceTertiary }]}>
+                  <View
+                    style={[
+                      styles.barFill,
+                      {
+                        backgroundColor: theme.primary,
+                        width: `${Math.max(8, (session.duration_seconds / maxDuration) * 100)}%`,
+                      },
+                    ]}
+                  />
+                </View>
               </View>
-            ))}
+              );
+            })}
           </Card>
-        ) : null}
+        ) : (
+          <Card style={styles.emptyCard}>
+            <Ionicons name="timer-outline" size={22} color={theme.primary} />
+            <View style={styles.patternCopy}>
+              <Typography variant="subtitle">No blocks yet</Typography>
+              <Typography variant="caption">Start and stop a session on Today to see patterns here.</Typography>
+            </View>
+          </Card>
+        )}
       </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing.xl, paddingBottom: 110 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  content: { gap: spacing.xl, paddingBottom: 120 },
+  heroCopy: { gap: 6 },
   metrics: { flexDirection: 'row', gap: spacing.md },
-  metricCard: { flex: 1, gap: spacing.sm },
-  metricValue: { fontSize: 28 },
-  reportCard: { borderRadius: radius.glass, gap: spacing.md },
-  reportView: { height: 280, width: '100%' },
-  nativeHint: { lineHeight: 18 },
+  reportCard: { gap: spacing.md },
+  patternBlock: { gap: spacing.md },
   patternCard: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  patternCopy: { flex: 1, gap: 2 },
-  listCard: { gap: spacing.md, borderRadius: radius.glass },
-  sessionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sessionWhen: { flex: 1 },
+  patternCopy: { flex: 1, gap: 4 },
+  listCard: { gap: spacing.lg },
+  sessionRow: { gap: spacing.sm },
+  sessionMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  barTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  emptyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
 });

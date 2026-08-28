@@ -12,5 +12,7 @@ export {
   stopDeviceActivityCapture,
   getLastSessionWindow,
   hydrateLastSessionWindow,
+  refreshLiveSessionWindow,
   getCaptureWarning,
+  persistUsageSnapshot,
 } from './deviceActivity';

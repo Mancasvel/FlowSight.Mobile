@@ -7,7 +7,7 @@
 
 import React, { createContext, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
-import { lightTheme, darkTheme, type Theme } from '@/theme/tokens';
+import { lightTheme, darkTheme, type Theme } from './tokens';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 

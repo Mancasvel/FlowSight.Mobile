@@ -98,6 +98,23 @@ async function initializeDatabase(database: SQLite.SQLiteDatabase) {
       paused_at TEXT,
       accumulated_seconds INTEGER NOT NULL DEFAULT 0
     );
+
+    -- Per-hour app usage from Apple Screen Time (local only, never synced)
+    CREATE TABLE IF NOT EXISTS hourly_app_usage (
+      id TEXT PRIMARY KEY,
+      day TEXT NOT NULL,
+      hour INTEGER NOT NULL,
+      app_id TEXT NOT NULL,
+      app_name TEXT NOT NULL,
+      bundle_id TEXT,
+      seconds REAL NOT NULL,
+      is_focus INTEGER NOT NULL DEFAULT 0,
+      captured_at TEXT NOT NULL,
+      UNIQUE(day, hour, app_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_hourly_app_usage_day
+      ON hourly_app_usage(day, hour);
   `);
 
   const columns = await database.getAllAsync<{ name: string }>(
@@ -339,11 +356,79 @@ export async function getRecentSessions(limit = 14) {
     end_at: string;
     duration_seconds: number;
     pause_count: number;
+    category: string | null;
   }>(
-    `SELECT id, start_at, end_at, duration_seconds, COALESCE(pause_count, 0) as pause_count
+    `SELECT id, start_at, end_at, duration_seconds, COALESCE(pause_count, 0) as pause_count, category
      FROM activity_events
      ORDER BY start_at DESC
      LIMIT ?`,
     [limit]
+  );
+}
+
+export type HourlyAppUsageRow = {
+  day: string;
+  hour: number;
+  app_id: string;
+  app_name: string;
+  bundle_id: string | null;
+  seconds: number;
+  is_focus: number;
+  captured_at: string;
+};
+
+export async function replaceHourlyAppUsage(input: {
+  capturedAt: string;
+  hours: Array<{
+    day: string;
+    hour: number;
+    apps: Array<{
+      id: string;
+      name: string;
+      bundleId?: string | null;
+      seconds: number;
+      isFocus: boolean;
+    }>;
+  }>;
+}) {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    for (const hour of input.hours) {
+      if (hour.hour < 0 || hour.hour > 23) continue;
+      await db.runAsync(
+        `DELETE FROM hourly_app_usage WHERE day = ? AND hour = ?`,
+        [hour.day, hour.hour]
+      );
+      for (const app of hour.apps) {
+        if (!app.id || !app.name || app.seconds <= 0) continue;
+        await db.runAsync(
+          `INSERT INTO hourly_app_usage (
+            id, day, hour, app_id, app_name, bundle_id, seconds, is_focus, captured_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            createId(),
+            hour.day,
+            hour.hour,
+            app.id,
+            app.name,
+            app.bundleId ?? null,
+            app.seconds,
+            app.isFocus ? 1 : 0,
+            input.capturedAt,
+          ]
+        );
+      }
+    }
+  });
+}
+
+export async function getHourlyAppUsage(day: string): Promise<HourlyAppUsageRow[]> {
+  const db = await getDatabase();
+  return db.getAllAsync<HourlyAppUsageRow>(
+    `SELECT day, hour, app_id, app_name, bundle_id, seconds, is_focus, captured_at
+     FROM hourly_app_usage
+     WHERE day = ?
+     ORDER BY hour ASC, seconds DESC`,
+    [day]
   );
 }

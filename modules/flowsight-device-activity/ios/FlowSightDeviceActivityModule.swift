@@ -155,6 +155,24 @@ public class FlowSightDeviceActivityModule: Module {
       ]
     }
 
+    AsyncFunction("getLiveSessionWindow") { () -> [String: Any]? in
+      let defaults = UserDefaults.standard
+      let startMs = defaults.double(forKey: SessionKeys.startMs)
+      if startMs <= 0 {
+        let lastStart = defaults.double(forKey: SessionKeys.lastStartMs)
+        let lastEnd = defaults.double(forKey: SessionKeys.lastEndMs)
+        if lastStart > 0 && lastEnd > lastStart {
+          return ["startMs": lastStart, "endMs": lastEnd]
+        }
+        return nil
+      }
+      let endMs = defaults.double(forKey: SessionKeys.endMs)
+      return [
+        "startMs": startMs,
+        "endMs": endMs > startMs ? endMs : Date().timeIntervalSince1970 * 1000,
+      ]
+    }
+
     AsyncFunction("getLastSessionWindow") { () -> [String: Any]? in
       let defaults = UserDefaults.standard
       let startMs = defaults.double(forKey: SessionKeys.lastStartMs)
@@ -167,6 +185,10 @@ public class FlowSightDeviceActivityModule: Module {
 
     AsyncFunction("getActivity") { (_ startDateMs: Double, _ endDateMs: Double) -> [[String: Any]] in
       []
+    }
+
+    AsyncFunction("getUsageSnapshot") { () -> String? in
+      SelectionStore.defaults.string(forKey: "flowsight.usageSnapshot")
     }
 
     AsyncFunction("getTrackingStatus") { () -> [String: Any] in
@@ -244,8 +266,15 @@ private struct FamilyActivityPickerScreen: View {
   var body: some View {
     NavigationView {
       FamilyActivityPicker(selection: $selection)
-        .navigationTitle("Apps to measure")
+        .navigationTitle("Focus and switching")
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) {
+          Text("Add work apps one by one. Add Social or Entertainment as categories so those count as switching. Idle and screen-off count as focus.")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+        }
         .toolbar {
           ToolbarItem(placement: .cancellationAction) {
             Button("Cancel", action: onCancel)

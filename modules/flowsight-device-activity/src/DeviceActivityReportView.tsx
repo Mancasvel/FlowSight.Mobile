@@ -12,6 +12,7 @@ export type DeviceActivityReportViewProps = {
   startMs: number;
   endMs: number;
   segment?: 'hourly' | 'daily';
+  hidden?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -66,8 +67,12 @@ export function DeviceActivityReportView({
   startMs,
   endMs,
   segment = 'hourly',
+  hidden = false,
   style,
 }: DeviceActivityReportViewProps) {
+  if (hidden && (Platform.OS !== 'ios' || !NativeReportView || !startMs || !endMs)) {
+    return null;
+  }
   if (Platform.OS !== 'ios' || !NativeReportView || !startMs || !endMs) {
     return <Fallback style={style} />;
   }
@@ -85,12 +90,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   fallbackTitle: {
-    color: 'rgba(255,255,255,0.82)',
+    color: '#0F172A',
     fontSize: 14,
     fontWeight: '600',
   },
   fallbackCopy: {
-    color: 'rgba(255,255,255,0.55)',
+    color: '#64748B',
     fontSize: 12,
     lineHeight: 17,
   },

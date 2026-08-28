@@ -89,16 +89,18 @@ export async function exportLocalData(): Promise<Record<string, unknown>> {
   const events = await db.getAllAsync('SELECT * FROM activity_events');
   const preferences = await db.getAllAsync('SELECT * FROM user_preferences');
   const coachMessages = await db.getAllAsync('SELECT * FROM coach_messages');
+  const hourlyAppUsage = await db.getAllAsync('SELECT * FROM hourly_app_usage');
 
   return {
     exportDate: new Date().toISOString(),
     appVersion: '0.1.0',
     platform: 'mobile',
     activityEvents: events,
+    hourlyAppUsage,
     preferences: preferences,
     coachMessages: coachMessages,
-    privacyNote: 'This export contains local FlowSight timer sessions and preferences. ' +
-      'Apple Screen Time (app names and per-app duration) is not stored here and cannot be exported. ' +
+    privacyNote: 'This export contains local FlowSight timer sessions, hourly app usage, and preferences. ' +
+      'App names from Apple Screen Time stay on this iPhone and are not synced. ' +
       'Cloud data is included only if you opted in to sync and signed in.',
   };
 }
@@ -112,6 +114,7 @@ export async function deleteLocalData(): Promise<void> {
 
   await db.execAsync(`
     DELETE FROM activity_events;
+    DELETE FROM hourly_app_usage;
     DELETE FROM sync_queue;
     DELETE FROM coach_messages;
     DELETE FROM active_session;
@@ -120,6 +123,12 @@ export async function deleteLocalData(): Promise<void> {
 
   await clearSession();
   clearEntitlementsCache();
+  try {
+    const { disableFocusNotifications } = await import('@/services/notifications');
+    await disableFocusNotifications();
+  } catch {
+    // Native notifications may be unavailable.
+  }
 }
 
 /**

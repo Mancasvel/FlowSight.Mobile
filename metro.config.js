@@ -10,4 +10,18 @@ config.resolver.extraNodeModules = {
   'flowsight-device-activity': deviceActivityModule,
 };
 
+const previousGetTransformOptions = config.transformer.getTransformOptions;
+config.transformer.getTransformOptions = async (...args) => {
+  const opts = previousGetTransformOptions
+    ? await previousGetTransformOptions(...args)
+    : { transform: {} };
+  return {
+    ...opts,
+    transform: {
+      ...opts.transform,
+      inlineRequires: true,
+    },
+  };
+};
+
 module.exports = config;

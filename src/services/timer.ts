@@ -9,7 +9,12 @@ import { Platform } from 'react-native';
 import { saveActiveSession, getActiveSession, clearActiveSession, insertActivityEvent } from '@/storage';
 import { getDeviceId } from '@/storage';
 import { createId } from '@/utils/id';
-import { startDeviceActivityCapture, stopDeviceActivityCapture } from '@/services/deviceActivity';
+import { startDeviceActivityCapture, stopDeviceActivityCapture, persistUsageSnapshot } from '@/services/deviceActivity';
+import {
+  cancelFocusGoalNotification,
+  markFocusDayCompleted,
+  scheduleFocusGoalNotification,
+} from './notifications';
 
 export type TimerState = 'idle' | 'running' | 'paused';
 
@@ -116,6 +121,8 @@ export async function startTimer(options?: {
       notify();
     }
   }
+
+  void scheduleFocusGoalNotification(0);
 }
 
 export async function pauseTimer() {
@@ -140,9 +147,10 @@ export async function pauseTimer() {
   });
 
   notify();
+  void cancelFocusGoalNotification();
 }
 
-export async function resumeTimer() {
+export async function resumeTimer(): Promise<void> {
   if (state !== 'paused' || !currentSession) return;
 
   currentSession.startedAt = Date.now();
@@ -160,6 +168,7 @@ export async function resumeTimer() {
   });
 
   notify();
+  void scheduleFocusGoalNotification(getElapsedSeconds());
 }
 
 export async function stopTimer(): Promise<{
@@ -193,7 +202,7 @@ export async function stopTimer(): Promise<{
     end_at: now.toISOString(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     duration_seconds: elapsed,
-    category: session.category ?? 'General',
+    category: session.category ?? 'Focus',
     task_label: session.taskLabel,
     ticket_ref: session.ticketRef,
     confidence: 1.0,
@@ -215,6 +224,8 @@ export async function stopTimer(): Promise<{
   currentSession = null;
   state = 'idle';
   notify();
+  void markFocusDayCompleted();
+  void persistUsageSnapshot();
 
   return result;
 }
@@ -272,4 +283,9 @@ export async function recoverTimer(): Promise<void> {
   }
 
   notify();
+  if (state === 'running') {
+    void scheduleFocusGoalNotification(getElapsedSeconds());
+  } else {
+    void cancelFocusGoalNotification();
+  }
 }

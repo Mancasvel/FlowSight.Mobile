@@ -42,8 +42,29 @@ type NativeModule = {
   startSessionMonitoring: () => Promise<{ started: boolean; startMs: number; error?: string }>;
   stopSessionMonitoring: () => Promise<{ stopped: boolean; startMs: number; endMs: number }>;
   getLastSessionWindow: () => Promise<SessionWindow | null>;
+  getLiveSessionWindow: () => Promise<SessionWindow | null>;
   getActivity: (startDateMs: number, endDateMs: number) => Promise<DeviceActivityData[]>;
+  getUsageSnapshot: () => Promise<string | null>;
   getTrackingStatus: () => Promise<{ isTracking: boolean; platform: string; method: string }>;
+};
+
+export type UsageAppSlice = {
+  id: string;
+  name: string;
+  bundleId?: string | null;
+  seconds: number;
+  isFocus: boolean;
+};
+
+export type UsageHourSnapshot = {
+  startMs: number;
+  hour: number;
+  apps: UsageAppSlice[];
+};
+
+export type UsageSnapshot = {
+  capturedAtMs: number;
+  hours: UsageHourSnapshot[];
 };
 
 function getNative(): NativeModule | null {
@@ -158,11 +179,82 @@ export async function stopSessionMonitoring(): Promise<SessionWindow | null> {
   }
 }
 
+export async function getLiveSessionWindow(): Promise<SessionWindow | null> {
+  const native = getNative();
+  if (!native?.getLiveSessionWindow) return null;
+  try {
+    return await native.getLiveSessionWindow();
+  } catch {
+    return null;
+  }
+}
+
 export async function getLastSessionWindow(): Promise<SessionWindow | null> {
   const native = getNative();
   if (!native?.getLastSessionWindow) return null;
   try {
     return await native.getLastSessionWindow();
+  } catch {
+    return null;
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function parseUsageSnapshot(raw: unknown): UsageSnapshot | null {
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  const root = asRecord(parsed);
+  if (!root) return null;
+  const hoursRaw = Array.isArray(root.hours) ? root.hours : [];
+  const hours: UsageHourSnapshot[] = [];
+  for (const hourValue of hoursRaw) {
+    const hour = asRecord(hourValue);
+    if (!hour) continue;
+    const appsRaw = Array.isArray(hour.apps) ? hour.apps : [];
+    const apps: UsageAppSlice[] = [];
+    for (const appValue of appsRaw) {
+      const app = asRecord(appValue);
+      if (!app) continue;
+      const seconds = Number(app.seconds);
+      const name = typeof app.name === 'string' ? app.name.trim() : '';
+      const id = typeof app.id === 'string' ? app.id : name;
+      if (!id || !name || !Number.isFinite(seconds) || seconds <= 0) continue;
+      apps.push({
+        id,
+        name,
+        bundleId: typeof app.bundleId === 'string' ? app.bundleId : null,
+        seconds,
+        isFocus: Boolean(app.isFocus),
+      });
+    }
+    hours.push({
+      startMs: Number(hour.startMs) || 0,
+      hour: Number(hour.hour),
+      apps,
+    });
+  }
+  return {
+    capturedAtMs: Number(root.capturedAtMs) || Date.now(),
+    hours,
+  };
+}
+
+export async function getUsageSnapshot(): Promise<UsageSnapshot | null> {
+  const native = getNative();
+  if (!native?.getUsageSnapshot) return null;
+  try {
+    return parseUsageSnapshot(await native.getUsageSnapshot());
   } catch {
     return null;
   }

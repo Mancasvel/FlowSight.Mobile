@@ -1,10 +1,10 @@
 import React from 'react';
 import { Pressable, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/theme';
-import { radius, fontSize, fontWeight, layout } from '@/theme/tokens';
+import { fontFamily, fontSize, layout, radius } from '@/theme/tokens';
+import { Glass } from './Glass';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -22,7 +22,6 @@ export function Button({
   loading?: boolean;
 }) {
   const { theme } = useTheme();
-
   const color =
     variant === 'primary' || variant === 'danger' ? theme.primaryText : theme.text;
 
@@ -35,65 +34,92 @@ export function Button({
         onPress();
       }}
       style={({ pressed }) => [
-        styles.button,
+        styles.pressable,
         {
-          borderColor: variant === 'ghost' ? 'transparent' : theme.glassBorder,
-          opacity: disabled ? 0.5 : pressed ? 0.82 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
+          opacity: disabled ? 0.5 : pressed ? 0.86 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
         },
       ]}
     >
       {variant === 'primary' ? (
         <LinearGradient
-          colors={['#8D6BFF', '#6545EB']}
+          colors={['#2DD4BF', '#00B8A9']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+          style={[styles.fill, { borderColor: 'rgba(255,255,255,0.45)' }]}
+        >
+          <Content color="#FFFFFF" label={label} loading={loading} />
+        </LinearGradient>
       ) : variant === 'danger' ? (
         <LinearGradient
-          colors={['#FF758C', '#E84967']}
-          style={StyleSheet.absoluteFill}
-        />
+          colors={['#F87171', '#EF4444']}
+          style={[styles.fill, { borderColor: 'rgba(255,255,255,0.35)' }]}
+        >
+          <Content color="#FFFFFF" label={label} loading={loading} />
+        </LinearGradient>
       ) : variant === 'secondary' ? (
-        <BlurView
-          intensity={35}
-          tint={theme.statusBar === 'dark' ? 'light' : 'dark'}
-          style={[StyleSheet.absoluteFill, { backgroundColor: theme.glass }]}
-        />
-      ) : null}
-      <View style={styles.content}>
+        <Glass style={styles.glass} radiusSize="lg">
+          <Content color={color} label={label} loading={loading} />
+        </Glass>
+      ) : (
+        <View style={styles.ghost}>
+          <Content color={theme.textSecondary} label={label} loading={loading} />
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function Content({
+  color,
+  label,
+  loading,
+}: {
+  color: string;
+  label: string;
+  loading: boolean;
+}) {
+  return (
+    <View style={styles.content}>
       {loading ? (
         <ActivityIndicator color={color} />
       ) : (
         <Text style={[styles.label, { color }]}>{label}</Text>
       )}
-      </View>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
+  pressable: {
+    minHeight: layout.touchTargetIOS,
+    borderRadius: radius.lg,
+  },
+  fill: {
+    width: '100%',
     minHeight: layout.touchTargetIOS,
     borderRadius: radius.lg,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
     overflow: 'hidden',
-    shadowColor: '#5E3ECB',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
+    justifyContent: 'center',
+  },
+  glass: {
+    width: '100%',
+    minHeight: layout.touchTargetIOS,
+    justifyContent: 'center',
+  },
+  ghost: {
+    minHeight: layout.touchTargetIOS,
+    justifyContent: 'center',
   },
   content: {
     minHeight: layout.touchTargetIOS,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   label: {
+    fontFamily: fontFamily.bodySemibold,
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
   },
 });

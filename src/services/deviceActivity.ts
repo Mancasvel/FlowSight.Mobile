@@ -10,6 +10,8 @@ import { Platform } from 'react-native';
 import {
   checkDeviceActivityPermission,
   getLastSessionWindow as getNativeLastWindow,
+  getLiveSessionWindow as getNativeLiveWindow,
+  getUsageSnapshot,
   hasActivitySelection,
   isNativeDeviceActivityAvailable,
   presentActivityPicker,
@@ -17,7 +19,10 @@ import {
   startSessionMonitoring,
   stopSessionMonitoring,
   type SessionWindow,
+  type UsageSnapshot,
 } from '../../modules/flowsight-device-activity/src/index';
+import { replaceHourlyAppUsage } from '@/storage';
+import { localDateKey } from '@/utils/format';
 
 export type CaptureResult = {
   started: boolean;
@@ -77,9 +82,17 @@ function setWarning(warning: string | null) {
   for (const listener of warningListeners) listener(warning);
 }
 
-export async function startDeviceActivityCapture(): Promise<CaptureResult> {
-  setWindow(null);
+export async function refreshLiveSessionWindow(): Promise<SessionWindow | null> {
+  if (Platform.OS !== 'ios' || !isNativeDeviceActivityAvailable()) return lastWindow;
+  const window = await getNativeLiveWindow();
+  if (window && window.startMs > 0 && window.endMs >= window.startMs) {
+    setWindow(window);
+    return window;
+  }
+  return lastWindow;
+}
 
+export async function startDeviceActivityCapture(): Promise<CaptureResult> {
   if (Platform.OS !== 'ios') {
     const result = { started: false, warning: null };
     setWarning(null);
@@ -134,6 +147,7 @@ export async function startDeviceActivityCapture(): Promise<CaptureResult> {
   }
 
   setWarning(null);
+  setWindow({ startMs: monitoring.startMs, endMs: Date.now() });
   return { started: true, warning: null };
 }
 
@@ -148,4 +162,32 @@ export async function stopDeviceActivityCapture(): Promise<SessionWindow | null>
     return window;
   }
   return lastWindow;
+}
+
+function dayForHour(hour: UsageSnapshot['hours'][number]): string {
+  if (hour.startMs > 0) return localDateKey(new Date(hour.startMs));
+  const now = new Date();
+  now.setHours(hour.hour, 0, 0, 0);
+  return localDateKey(now);
+}
+
+export async function persistUsageSnapshot(): Promise<boolean> {
+  if (Platform.OS !== 'ios' || !isNativeDeviceActivityAvailable()) return false;
+  try {
+    const snapshot = await getUsageSnapshot();
+    if (!snapshot || snapshot.hours.length === 0) return false;
+    await replaceHourlyAppUsage({
+      capturedAt: new Date(snapshot.capturedAtMs || Date.now()).toISOString(),
+      hours: snapshot.hours
+        .filter((hour) => Number.isInteger(hour.hour) && hour.hour >= 0 && hour.hour <= 23)
+        .map((hour) => ({
+          day: dayForHour(hour),
+          hour: hour.hour,
+          apps: hour.apps,
+        })),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }

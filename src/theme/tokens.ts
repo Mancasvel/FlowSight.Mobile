@@ -1,23 +1,28 @@
 ﻿/**
  * FlowSight Design Tokens
  *
- * Preserves the FlowSight identity: violet primary, blue/cyan accent,
- * grey-blue surfaces, soft radii, calm and precise personality.
+ * Mapped from flowsight.site: teal primary, slate type, 56px grid,
+ * Manrope + Plus Jakarta Sans, liquid-glass surfaces.
  */
 
 // ─── Colors ────────────────────────────────────────────────────────────────────
 
 export const colors = {
-  // Primary — violet near HSL 263 84% 58%
-  primary: '#7C3AED',
-  primaryLight: '#A78BFA',
-  primaryDark: '#5B21B6',
-  primarySurface: '#EDE9FE',
+  // Primary — site --primary
+  primary: '#00B8A9',
+  primaryLight: '#5EEAD4',
+  primaryDark: '#0F766E',
+  primarySurface: '#ECFEFF',
 
-  // Accent — blue/cyan FlowSight symbol
-  accent: '#06B6D4',
-  accentLight: '#67E8F9',
-  accentDark: '#0891B2',
+  // Logo gradient companions
+  indigo: '#6366F1',
+  indigoDeep: '#4F46E5',
+  sky: '#38BDF8',
+
+  // Accent — site chart-2 / sky
+  accent: '#38BDF8',
+  accentLight: '#7DD3FC',
+  accentDark: '#0284C7',
 
   // Semantic
   success: '#10B981',
@@ -27,7 +32,7 @@ export const colors = {
   error: '#EF4444',
   errorLight: '#FEE2E2',
 
-  // Neutral — grey-blue tinted
+  // Neutral — slate, matching site foreground
   neutral50: '#F8FAFC',
   neutral100: '#F1F5F9',
   neutral200: '#E2E8F0',
@@ -40,19 +45,18 @@ export const colors = {
   neutral900: '#0F172A',
   neutral950: '#020617',
 
-  // Category colors (for charts)
   category: {
-    Analysis: '#7C3AED',
-    Writing: '#3B82F6',
+    Analysis: '#00B8A9',
+    Writing: '#38BDF8',
     Coding: '#10B981',
     Debugging: '#F59E0B',
-    CodeReview: '#8B5CF6',
-    Testing: '#06B6D4',
-    Documentation: '#6366F1',
+    CodeReview: '#6366F1',
+    Testing: '#22D3EE',
+    Documentation: '#64748B',
     Design: '#EC4899',
     Planning: '#14B8A6',
     Meeting: '#F97316',
-    Communication: '#8B5CF6',
+    Communication: '#6366F1',
     Research: '#0EA5E9',
     Learning: '#22D3EE',
     DevOps: '#84CC16',
@@ -61,69 +65,93 @@ export const colors = {
     Admin: '#78716C',
     Browsing: '#94A3B8',
     Idle: '#CBD5E1',
+    Focus: '#00B8A9',
     General: '#64748B',
   },
 } as const;
 
+const appColors = [
+  '#00B8A9',
+  '#6366F1',
+  '#F59E0B',
+  '#EC4899',
+  '#38BDF8',
+  '#10B981',
+  '#F97316',
+  '#A855F7',
+  '#0EA5E9',
+  '#EF4444',
+  '#84CC16',
+  '#14B8A6',
+] as const;
+
+export function categoryColor(name: string): string {
+  const palette = colors.category;
+  if (name in palette) return palette[name as keyof typeof palette];
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (Math.imul(hash, 31) + name.charCodeAt(i)) | 0;
+  }
+  return appColors[Math.abs(hash) % appColors.length];
+}
+
 // ─── Light Theme ───────────────────────────────────────────────────────────────
 
 export const lightTheme = {
-  background: '#F2F3FA',
+  background: '#FBFCFB',
   surface: '#FFFFFF',
-  surfaceSecondary: 'rgba(255, 255, 255, 0.58)',
-  surfaceTertiary: 'rgba(108, 92, 231, 0.10)',
-  text: '#16152A',
-  textSecondary: '#66657A',
-  textTertiary: '#9694A8',
+  surfaceSecondary: 'rgba(255, 255, 255, 0.62)',
+  surfaceTertiary: 'rgba(0, 184, 169, 0.10)',
+  text: '#0F172A',
+  textSecondary: '#64748B',
+  textTertiary: '#94A3B8',
   textInverse: '#FFFFFF',
-  border: 'rgba(255, 255, 255, 0.72)',
-  borderLight: 'rgba(255, 255, 255, 0.45)',
-  primary: '#6D4AFF',
+  border: '#E2E8F0',
+  borderLight: 'rgba(15, 23, 42, 0.06)',
+  primary: '#00B8A9',
   primaryText: '#FFFFFF',
-  accent: '#25C2F5',
-  card: 'rgba(255, 255, 255, 0.48)',
-  cardShadow: 'rgba(71, 55, 150, 0.16)',
-  glass: 'rgba(255, 255, 255, 0.42)',
-  glassStrong: 'rgba(255, 255, 255, 0.68)',
-  glassBorder: 'rgba(255, 255, 255, 0.82)',
-  glassHighlight: 'rgba(255, 255, 255, 0.94)',
-  orbPrimary: 'rgba(125, 91, 255, 0.32)',
-  orbAccent: 'rgba(65, 204, 255, 0.25)',
-  overlay: 'rgba(0, 0, 0, 0.4)',
-  tabBar: 'rgba(255, 255, 255, 0.52)',
-  tabBarBorder: 'rgba(255, 255, 255, 0.82)',
+  accent: '#38BDF8',
+  card: 'rgba(255, 255, 255, 0.07)',
+  cardShadow: 'rgba(15, 23, 42, 0.06)',
+  glass: 'rgba(255, 255, 255, 0.10)',
+  glassStrong: 'rgba(255, 255, 255, 0.18)',
+  glassBorder: 'rgba(255, 255, 255, 0.58)',
+  glassHighlight: 'rgba(255, 255, 255, 0.70)',
+  grid: 'rgba(15, 23, 42, 0.14)',
+  overlay: 'rgba(15, 23, 42, 0.4)',
+  tabBar: 'rgba(255, 255, 255, 0.08)',
+  tabBarBorder: 'rgba(255, 255, 255, 0.48)',
   statusBar: 'dark' as const,
-} as const;
+};
 
 // ─── Dark Theme ────────────────────────────────────────────────────────────────
 
 export const darkTheme = {
-  background: '#0D0B1D',
-  surface: '#17142B',
-  surfaceSecondary: 'rgba(255, 255, 255, 0.08)',
-  surfaceTertiary: 'rgba(151, 122, 255, 0.14)',
-  text: '#F8F7FF',
-  textSecondary: '#B5B1C8',
-  textTertiary: '#7D788F',
+  background: '#070B0C',
+  surface: '#101618',
+  surfaceSecondary: 'rgba(255, 255, 255, 0.07)',
+  surfaceTertiary: 'rgba(45, 212, 191, 0.12)',
+  text: '#F8FAFC',
+  textSecondary: '#94A3B8',
+  textTertiary: '#64748B',
   textInverse: colors.neutral900,
-  border: 'rgba(255, 255, 255, 0.13)',
-  borderLight: 'rgba(255, 255, 255, 0.08)',
-  primary: '#9B7CFF',
-  primaryText: '#FFFFFF',
-  accent: colors.accentLight,
-  card: 'rgba(28, 24, 52, 0.55)',
-  cardShadow: 'rgba(0, 0, 0, 0.38)',
-  glass: 'rgba(28, 24, 52, 0.46)',
-  glassStrong: 'rgba(36, 31, 66, 0.72)',
-  glassBorder: 'rgba(255, 255, 255, 0.15)',
-  glassHighlight: 'rgba(255, 255, 255, 0.20)',
-  orbPrimary: 'rgba(125, 91, 255, 0.28)',
-  orbAccent: 'rgba(36, 196, 239, 0.18)',
+  border: 'rgba(255, 255, 255, 0.10)',
+  borderLight: 'rgba(255, 255, 255, 0.06)',
+  primary: '#2DD4BF',
+  primaryText: '#042F2E',
+  accent: colors.sky,
+  card: 'rgba(255, 255, 255, 0.06)',
+  cardShadow: 'rgba(0, 0, 0, 0.35)',
+  glass: 'rgba(255, 255, 255, 0.07)',
+  glassStrong: 'rgba(255, 255, 255, 0.12)',
+  glassBorder: 'rgba(255, 255, 255, 0.16)',
+  glassHighlight: 'rgba(255, 255, 255, 0.22)',
+  grid: 'rgba(255, 255, 255, 0.12)',
   overlay: 'rgba(0, 0, 0, 0.6)',
-  tabBar: 'rgba(22, 19, 42, 0.64)',
-  tabBarBorder: 'rgba(255, 255, 255, 0.13)',
+  tabBar: 'rgba(8, 12, 14, 0.18)',
+  tabBarBorder: 'rgba(255, 255, 255, 0.14)',
   statusBar: 'light' as const,
-} as const;
+};
 
 export type Theme = typeof lightTheme | typeof darkTheme;
 
@@ -146,13 +174,22 @@ export const radius = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 20,
+  xl: 22,
   xxl: 28,
-  glass: 30,
+  glass: 26,
   full: 9999,
 } as const;
 
 // ─── Typography ────────────────────────────────────────────────────────────────
+
+export const fontFamily = {
+  display: 'Manrope_600SemiBold',
+  displayBold: 'Manrope_700Bold',
+  displayMedium: 'Manrope_500Medium',
+  body: 'PlusJakartaSans_400Regular',
+  bodyMedium: 'PlusJakartaSans_500Medium',
+  bodySemibold: 'PlusJakartaSans_600SemiBold',
+} as const;
 
 export const fontSize = {
   xs: 11,
@@ -160,10 +197,10 @@ export const fontSize = {
   base: 15,
   md: 17,
   lg: 20,
-  xl: 24,
-  xxl: 28,
-  xxxl: 34,
-  display: 40,
+  xl: 26,
+  xxl: 32,
+  xxxl: 36,
+  display: 44,
 } as const;
 
 export const fontWeight = {
@@ -174,7 +211,7 @@ export const fontWeight = {
 };
 
 export const lineHeight = {
-  tight: 1.2,
+  tight: 1.15,
   normal: 1.4,
   relaxed: 1.6,
 } as const;
@@ -199,41 +236,35 @@ export const easing = {
 
 export const shadows = {
   sm: {
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
   md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowRadius: 20,
+    elevation: 4,
   },
   lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowRadius: 32,
+    elevation: 8,
   },
 } as const;
 
-// ─── Layout ────────────────────────────────────────────────────────────────────
-
 export const layout = {
-  // Minimum touch targets
   touchTargetIOS: 44,
   touchTargetAndroid: 48,
-  // Screen padding
-  screenPaddingHorizontal: spacing.lg,
-  screenPaddingVertical: spacing.xl,
-  // Card padding
-  cardPadding: spacing.lg,
-  // Tab bar height
+  screenPaddingHorizontal: 20,
+  screenPaddingVertical: 16,
+  cardPadding: 18,
   tabBarHeight: 84,
-  // Header height
   headerHeight: 56,
+  gridSize: 56,
 } as const;

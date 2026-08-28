@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlowSight",
     "slug": "flowsight",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "flowsight",
@@ -10,16 +10,16 @@
     "newArchEnabled": true,
     "platforms": ["ios"],
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/flowsight-mark.png",
       "resizeMode": "contain",
-      "backgroundColor": "#7C3AED"
+      "backgroundColor": "#FBFCFB"
     },
     "ios": {
       "supportsTablet": false,
       "requireFullScreen": true,
       "bundleIdentifier": "ai.flowsight.mobile",
       "appleTeamId": "MLUJVMGV82",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "LSRequiresIPhoneOS": true,
         "UIDeviceFamily": [1],
@@ -27,7 +27,8 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
-        "com.apple.developer.family-controls": true
+        "com.apple.developer.family-controls": true,
+        "com.apple.security.application-groups": ["group.ai.flowsight.mobile"]
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -61,6 +62,7 @@
       "expo-secure-store",
       "expo-sqlite",
       "expo-dev-client",
+      "expo-notifications",
       [
         "expo-build-properties",
         {

@@ -137,6 +137,7 @@ function addExtensionTarget(project, config, extension) {
 function withFamilyControls(config) {
   return withEntitlementsPlist(config, (mod) => {
     mod.modResults[FAMILY_CONTROLS] = true;
+    mod.modResults['com.apple.security.application-groups'] = ['group.ai.flowsight.mobile'];
     return mod;
   });
 }

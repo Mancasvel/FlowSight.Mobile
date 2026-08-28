@@ -1,7 +1,7 @@
 import React from 'react';
 import { TextInput, StyleSheet, type TextInputProps } from 'react-native';
 import { useTheme } from '@/theme';
-import { radius, fontSize, layout } from '@/theme/tokens';
+import { fontFamily, fontSize, radius } from '@/theme/tokens';
 
 export function Input(props: TextInputProps) {
   const { theme } = useTheme();
@@ -13,9 +13,10 @@ export function Input(props: TextInputProps) {
       style={[
         styles.input,
         {
-          backgroundColor: theme.surfaceSecondary,
+          backgroundColor: theme.glass,
           color: theme.text,
-          borderColor: theme.border,
+          borderColor: theme.glassBorder,
+          fontFamily: fontFamily.body,
         },
         props.style,
       ]}
@@ -25,10 +26,10 @@ export function Input(props: TextInputProps) {
 
 const styles = StyleSheet.create({
   input: {
-    minHeight: layout.touchTargetIOS,
-    borderRadius: radius.md,
+    minHeight: 52,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     fontSize: fontSize.base,
   },
 });
