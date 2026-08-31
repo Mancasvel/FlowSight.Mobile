@@ -12,6 +12,7 @@ import {
   Notice,
   HourlyBarChart,
   WeekStrip,
+  ScreenTimeCapture,
 } from '@/components';
 import { persistUsageSnapshot } from '@/services/deviceActivity';
 import {
@@ -84,6 +85,7 @@ export default function InsightsScreen() {
 
   return (
     <Screen>
+      <ScreenTimeCapture />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCopy}>
           <Typography variant="kicker" color={theme.primary}>
@@ -110,7 +112,7 @@ export default function InsightsScreen() {
           <SectionHeader
             kicker="01"
             title="Hourly timeline"
-            subtitle="Each color is an app in that hour. Saved on this iPhone."
+            subtitle="Each color is a category in that hour. Saved on this iPhone."
           />
           <HourlyBarChart buckets={hourBuckets} />
           {nativeScreenTime && needsAppPicker ? (

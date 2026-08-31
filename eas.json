@@ -19,6 +19,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "distribution": "store",
       "ios": {
         "resourceClass": "m-medium"
       }
@@ -27,7 +28,7 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "YOUR_ASC_APP_ID"
+        "appleTeamId": "MLUJVMGV82"
       }
     }
   }

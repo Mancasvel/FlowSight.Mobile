@@ -197,16 +197,14 @@ struct SessionActivityView: View {
   let configuration: SessionConfiguration
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      summary
-      if configuration.hours.isEmpty && configuration.apps.isEmpty {
-        Text("No Screen Time in this window yet. Pick work apps, then wait a minute.")
+    VStack(alignment: .leading, spacing: 10) {
+      if configuration.apps.isEmpty {
+        Text("No apps in this window yet. Start a block and wait a minute.")
           .font(.footnote)
           .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, alignment: .center)
-          .padding(.vertical, 20)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.vertical, 12)
       } else {
-        hourlyChart
         appList
       }
     }
@@ -288,7 +286,7 @@ struct SessionActivityView: View {
 
   private var appList: some View {
     VStack(alignment: .leading, spacing: 8) {
-      ForEach(configuration.apps.prefix(5)) { app in
+      ForEach(configuration.apps.prefix(8)) { app in
         HStack(spacing: 8) {
           Circle()
             .fill(app.isFocus ? focusColor : switchingColor)

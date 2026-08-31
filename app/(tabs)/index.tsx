@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,17 +19,31 @@ import {
   subscribeCaptureWarning,
 } from '@/services/deviceActivity';
 import { warningsForSession } from '@/services/sessionInsights';
+import {
+  DEFAULT_FOCUS_GOAL_MINUTES,
+  MAX_FOCUS_GOAL_MINUTES,
+  formatFocusGoal,
+  getFocusGoalMinutes,
+  setFocusGoalMinutes,
+} from '@/services/focusGoal';
+import { scheduleFocusGoalNotification } from '@/services/notifications';
 import { useTheme } from '@/theme';
 import { formatDuration } from '@/utils/format';
 import { fontFamily, radius, spacing } from '@/theme/tokens';
-import { FOCUS_GOAL_SECONDS } from '@/services/notifications';
+
+const MAX_GOAL_HOURS = Math.floor(MAX_FOCUS_GOAL_MINUTES / 60);
 
 export default function TodayScreen() {
   const { theme } = useTheme();
   const timer = useTimer();
   const [captureWarning, setCaptureWarning] = useState(getCaptureWarning);
   const [sessionWarnings, setSessionWarnings] = useState<string[]>([]);
-  const progress = Math.min(timer.elapsed / FOCUS_GOAL_SECONDS, 1);
+  const [goalMinutes, setGoalMinutes] = useState(DEFAULT_FOCUS_GOAL_MINUTES);
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [draftHours, setDraftHours] = useState(0);
+  const [draftMinutes, setDraftMinutes] = useState(DEFAULT_FOCUS_GOAL_MINUTES);
+  const goalSeconds = goalMinutes * 60;
+  const progress = Math.min(timer.elapsed / Math.max(goalSeconds, 1), 1);
   const dateLabel = useMemo(
     () =>
       new Intl.DateTimeFormat('en', {
@@ -42,12 +56,14 @@ export default function TodayScreen() {
 
   useEffect(() => {
     const unsubscribeWarning = subscribeCaptureWarning(setCaptureWarning);
+    void getFocusGoalMinutes().then(setGoalMinutes);
     return unsubscribeWarning;
   }, []);
 
   const warning = timer.session?.captureWarning ?? captureWarning;
   const nativeCapture = Boolean(timer.session?.deviceActivityStarted);
   const pauseCount = timer.session?.pauseCount ?? 0;
+  const draftTotal = draftHours * 60 + draftMinutes;
 
   const headline = timer.isRunning
     ? 'In flow.'
@@ -82,6 +98,26 @@ export default function TodayScreen() {
     );
   };
 
+  const applyGoal = async (minutes: number) => {
+    const next = await setFocusGoalMinutes(minutes);
+    setGoalMinutes(next);
+    void Haptics.selectionAsync();
+    if (!timer.isIdle) {
+      void scheduleFocusGoalNotification(timer.elapsed);
+    }
+  };
+
+  const openGoal = () => {
+    setDraftHours(Math.floor(goalMinutes / 60));
+    setDraftMinutes(goalMinutes % 60);
+    setGoalOpen(true);
+  };
+
+  const saveGoal = () => {
+    void applyGoal(draftTotal);
+    setGoalOpen(false);
+  };
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -101,7 +137,7 @@ export default function TodayScreen() {
             {timer.isIdle
               ? 'Start a block. Screen Time is measured only while the timer runs.'
               : nativeCapture
-                ? 'Pause holds the clock. Capture continues until you stop.'
+                ? 'Pause holds the clock. Stop ends the block.'
                 : 'Timer only. Per-app time needs the native iOS build.'}
           </Typography>
         </View>
@@ -111,18 +147,28 @@ export default function TodayScreen() {
           <Typography variant="display" style={styles.clock}>
             {formatDuration(timer.elapsed)}
           </Typography>
-          <View style={styles.goalRow}>
-            <Typography variant="caption">25m focus goal</Typography>
-            <Typography variant="caption" color={theme.primary}>
+          <View style={styles.progressBlock}>
+            <ProgressBar progress={progress} />
+            <Typography variant="caption" color={theme.primary} style={styles.goalPct}>
               {Math.round(progress * 100)}%
             </Typography>
           </View>
-          <ProgressBar progress={progress} />
 
           <View style={styles.metaRow}>
-            <Meta label="Capture" value={nativeCapture ? 'On device' : 'Timer'} />
             <Meta label="Pauses" value={String(pauseCount)} />
-            <Meta label="Goal" value="25m" />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Edit focus goal"
+              onPress={openGoal}
+              style={({ pressed }) => [styles.meta, styles.metaEnd, pressed && styles.pressed]}
+            >
+              <Typography variant="kicker" color={theme.textTertiary}>
+                Goal
+              </Typography>
+              <Typography variant="caption" color={theme.text}>
+                {formatFocusGoal(goalMinutes)}
+              </Typography>
+            </Pressable>
           </View>
 
           <View style={styles.actions}>
@@ -194,7 +240,135 @@ export default function TodayScreen() {
           </Notice>
         ))}
       </ScrollView>
+
+      <Modal
+        visible={goalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setGoalOpen(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setGoalOpen(false)} />
+          <View style={[styles.sheet, { backgroundColor: theme.background, borderColor: theme.glassBorder }]}>
+            <Typography variant="kicker" color={theme.primary}>
+              Focus goal
+            </Typography>
+            <Typography variant="title">{formatFocusGoal(draftTotal)}</Typography>
+            <TrackSlider
+              label="Hours"
+              value={draftHours}
+              min={0}
+              max={MAX_GOAL_HOURS}
+              format={(value) => `${value}h`}
+              onChange={(hours) => {
+                setDraftHours(hours);
+                setDraftMinutes((mins) => {
+                  if (hours === 0 && mins < 5) return 5;
+                  if (hours === MAX_GOAL_HOURS) return 0;
+                  return mins;
+                });
+              }}
+            />
+            <TrackSlider
+              label="Minutes"
+              value={draftMinutes}
+              min={draftHours === 0 ? 5 : 0}
+              max={draftHours === MAX_GOAL_HOURS ? 0 : 59}
+              format={(value) => `${value}m`}
+              onChange={setDraftMinutes}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save focus goal"
+              onPress={saveGoal}
+              style={({ pressed }) => [styles.sheetSave, pressed && styles.pressed]}
+            >
+              <LinearGradient
+                colors={['#6366F1', '#00B8A9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.sheetSaveFill}
+              >
+                <Typography color="#FFFFFF" style={styles.primaryLabel}>
+                  Save
+                </Typography>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Screen>
+  );
+}
+
+function TrackSlider({
+  label,
+  value,
+  min,
+  max,
+  format,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  format: (value: number) => string;
+  onChange: (value: number) => void;
+}) {
+  const { theme } = useTheme();
+  const trackRef = useRef<View>(null);
+  const originX = useRef(0);
+  const trackWidth = useRef(1);
+  const span = Math.max(1, max - min);
+  const ratio = Math.min(1, Math.max(0, (value - min) / span));
+
+  const measureTrack = () => {
+    trackRef.current?.measureInWindow((x, _y, width) => {
+      originX.current = x;
+      trackWidth.current = Math.max(1, width);
+    });
+  };
+
+  const setFromPageX = (pageX: number) => {
+    const nextRatio = Math.min(1, Math.max(0, (pageX - originX.current) / trackWidth.current));
+    onChange(Math.round(min + nextRatio * span));
+  };
+
+  return (
+    <View style={styles.sliderBlock}>
+      <View style={styles.sliderHeader}>
+        <Typography variant="kicker" color={theme.textTertiary}>
+          {label}
+        </Typography>
+        <Typography variant="caption">{format(value)}</Typography>
+      </View>
+      <View
+        ref={trackRef}
+        onLayout={measureTrack}
+        onStartShouldSetResponder={() => min !== max}
+        onMoveShouldSetResponder={() => min !== max}
+        onResponderGrant={(event) => {
+          measureTrack();
+          setFromPageX(event.nativeEvent.pageX);
+        }}
+        onResponderMove={(event) => setFromPageX(event.nativeEvent.pageX)}
+        style={[styles.sliderTrack, { backgroundColor: theme.surfaceTertiary }]}
+      >
+        <View style={[styles.sliderFill, { width: `${ratio * 100}%`, backgroundColor: theme.primary }]} />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.sliderThumb,
+            {
+              left: `${ratio * 100}%`,
+              backgroundColor: theme.background,
+              borderColor: theme.primary,
+            },
+          ]}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -232,18 +406,22 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
   },
   clock: { fontSize: 52, lineHeight: 58 },
-  goalRow: {
+  progressBlock: {
     width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 8,
+  },
+  goalPct: {
+    textAlign: 'right',
   },
   metaRow: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     paddingTop: spacing.sm,
   },
   meta: { alignItems: 'flex-start', gap: 2, flex: 1 },
+  metaEnd: { alignItems: 'flex-end' },
   actions: {
     width: '100%',
     flexDirection: 'row',
@@ -284,5 +462,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.32)',
+    padding: spacing.md,
+  },
+  sheet: {
+    gap: spacing.lg,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+  },
+  sliderBlock: { gap: 10 },
+  sliderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  sliderTrack: {
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+  },
+  sliderFill: {
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 10,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    width: 22,
+    height: 22,
+    marginLeft: -11,
+    borderRadius: 11,
+    borderWidth: 2,
+  },
+  sheetSave: {
+    height: 52,
+    borderRadius: radius.lg,
+  },
+  sheetSaveFill: {
+    flex: 1,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

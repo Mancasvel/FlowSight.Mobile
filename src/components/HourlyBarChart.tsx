@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Typography } from './Typography';
 import { useTheme, categoryColor } from '@/theme';
 import { formatDurationShort } from '@/utils/format';
-import { visibleHourBuckets, type HourBucket } from '@/services/sessionInsights';
+import { topUsageCategories, visibleHourBuckets, type HourBucket } from '@/services/sessionInsights';
 import { radius } from '@/theme/tokens';
 
 const CHART_HEIGHT = 148;
@@ -32,20 +32,7 @@ export function HourlyBarChart({ buckets }: { buckets: HourBucket[] }) {
   const maxSeconds = Math.max(1, ...visible.map((bucket) => bucket.seconds));
   const totalSeconds = buckets.reduce((sum, bucket) => sum + bucket.seconds, 0);
   const fullDay = visible.length === 24;
-  const appRows = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const bucket of buckets) {
-      for (const segment of bucket.segments ?? []) {
-        const name =
-          segment.category === 'General' || segment.category === 'Focus' ? 'Focus' : segment.category;
-        totals.set(name, (totals.get(name) ?? 0) + segment.seconds);
-      }
-    }
-    return [...totals.entries()]
-      .sort((left, right) => right[1] - left[1])
-      .slice(0, 8)
-      .map(([name, seconds]) => ({ name, seconds }));
-  }, [buckets]);
+  const categoryRows = useMemo(() => topUsageCategories(buckets), [buckets]);
 
   return (
     <View style={styles.wrap}>
@@ -111,25 +98,30 @@ export function HourlyBarChart({ buckets }: { buckets: HourBucket[] }) {
         })}
       </View>
 
-      {appRows.length > 0 ? (
-        <View style={styles.appList}>
-          {appRows.map((item) => (
-            <View key={item.name} style={styles.appRow}>
+      <View style={styles.categoryList}>
+        <Typography variant="kicker">Top categories</Typography>
+        {categoryRows.length > 0 ? (
+          categoryRows.map((item) => (
+            <View key={item.name} style={styles.categoryRow}>
               <View style={[styles.swatch, { backgroundColor: categoryColor(item.name) }]} />
-              <Typography style={styles.appName} numberOfLines={1}>
+              <Typography style={styles.categoryName} numberOfLines={1}>
                 {item.name}
               </Typography>
               <Typography variant="caption">{formatDurationShort(item.seconds)}</Typography>
             </View>
-          ))}
-        </View>
-      ) : null}
+          ))
+        ) : (
+          <Typography variant="caption">
+            No categories yet. Start a block so Screen Time can write them here.
+          </Typography>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12 },
+  wrap: { gap: 16 },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -162,15 +154,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     minHeight: 12,
   },
-  appList: {
+  categoryList: {
     gap: 10,
+    paddingTop: 4,
   },
-  appRow: {
+  categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    minHeight: 22,
   },
-  appName: {
+  categoryName: {
     flex: 1,
   },
   swatch: {

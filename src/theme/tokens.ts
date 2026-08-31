@@ -67,6 +67,18 @@ export const colors = {
     Idle: '#CBD5E1',
     Focus: '#00B8A9',
     General: '#64748B',
+    Social: '#6366F1',
+    Entertainment: '#F59E0B',
+    Productivity: '#00B8A9',
+    Creativity: '#EC4899',
+    Reading: '#38BDF8',
+    Games: '#A855F7',
+    Health: '#10B981',
+    Education: '#0EA5E9',
+    Shopping: '#F97316',
+    Travel: '#14B8A6',
+    Utilities: '#64748B',
+    Other: '#94A3B8',
   },
 } as const;
 

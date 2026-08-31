@@ -1,0 +1,44 @@
+App Privacy (App Store Connect questionnaire)
+
+Data collection: Yes, only if the user signs in or turns on optional cloud sync. Core timer + Screen Time work fully without an account.
+
+Does not track: Yes (used for tracking = No on every type). NSPrivacyTracking is false.
+
+NOT collected by us (do not tick):
+- Precise/coarse location
+- Health, fitness, sensitive info
+- Contacts, photos, browsing history, search history
+- Purchases
+- Advertising data
+- Screen Time app names / per-app durations (Apple renders these in the report extension; we never copy them)
+
+Tick these types:
+
+1) Contact Info ? Email Address
+   - Collected: only if the user creates an account
+   - Purposes: App Functionality (sign-in)
+   - Linked to user identity: Yes
+   - Used for tracking: No
+
+2) Identifiers ? User ID
+   - Collected: only if signed in (account id)
+   - Purposes: App Functionality
+   - Linked to user identity: Yes
+   - Used for tracking: No
+
+3) Identifiers ? Device ID
+   - Collected: only if signed in (installation id for optional sync)
+   - Purposes: App Functionality
+   - Linked to user identity: Yes
+   - Used for tracking: No
+
+4) User Content ? Other User Content
+   - Collected: optional cloud sync of timer session totals (start/stop/duration/pauses). Off by default.
+   - Purposes: App Functionality
+   - Linked to user identity: Yes
+   - Used for tracking: No
+
+Category: Productivity
+Age rating: 4+ (no unrestricted web, no violence, no gambling, no mature themes)
+Copyright: 2026 FlowSight Inc.
+Primary language: English

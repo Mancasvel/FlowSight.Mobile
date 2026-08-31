@@ -1,0 +1,19 @@
+FlowSight Focus measures Apple Screen Time only while you work.
+
+Press Start. Do the work. Press Stop. You see which apps filled that block — not your whole day.
+
+HOW IT WORKS
+Start opens a Screen Time window. Stop closes it. Apple’s report on this iPhone shows time per app for that session only.
+
+ON THIS IPHONE
+• One focus block at a time, with pause if you need it
+• Live hourly timeline while the timer runs
+• Distraction patterns from your own sessions
+• Optional quiet reminders if you have not started
+• Export or delete local data anytime
+
+PRIVACY
+App names from Screen Time never leave this iPhone. They are not copied into our database, not sent to a server, and not used for ads. Sign-in is optional and never uploads Screen Time. Cloud sync is off by default and, if you turn it on, sends timer totals only.
+
+NO PAYWALL
+This app does not sell subscriptions or unlocks. No ads. No tracking.

@@ -1,0 +1,17 @@
+FAMILY CONTROLS / SCREEN TIME
+
+FlowSight Focus uses Family Controls with authorization .individual (not a parent managing a child). We do not block apps, do not install shields, and do not use Managed Settings to restrict the device.
+
+Purpose of the entitlement: the user presses Start, we open a DeviceActivity monitoring window for the apps and categories they chose. They press Stop, we end that window. Apple’s Device Activity Report extension then draws per-app time for that interval only. App names and per-app durations never leave the extension or this iPhone. They are not written to our SQLite database and are not sent to our servers.
+
+How to review:
+1. On first Start, allow Screen Time / Family Controls when iOS prompts.
+2. In the Apple picker, choose at least one app (and optionally Social / Entertainment as categories).
+3. Today tab: Start, wait about one minute, Stop.
+4. The native report under the timer shows time for the selected apps.
+
+Sign-in is optional. The timer and Screen Time report work signed out. Cloud sync is off by default.
+
+No in-app purchases, no ads, no tracking (NSPrivacyTracking is false). ITSAppUsesNonExemptEncryption is false.
+
+No demo account is required.

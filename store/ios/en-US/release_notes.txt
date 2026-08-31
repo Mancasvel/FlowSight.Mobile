@@ -1,0 +1,1 @@
+First App Store release. Start a block, stop when you are done, and see per-app Screen Time for that window only. Insights and patterns stay on this iPhone.

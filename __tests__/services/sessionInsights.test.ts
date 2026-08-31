@@ -10,6 +10,7 @@ import {
   hourlyBucketsFromSessions,
   hourlyBucketsFromSources,
   appsDuringSession,
+  topUsageCategories,
   visibleHourBuckets,
   patternsFromSessions,
   streakFromSessions,
@@ -100,7 +101,7 @@ describe('sessionInsights', () => {
     expect(stacked?.segments.map((segment) => segment.category).sort()).toEqual(['Coding', 'Writing']);
   });
 
-  test('stacks hourly bars by saved Screen Time apps instead of General', () => {
+  test('stacks hourly bars by Screen Time category instead of app names', () => {
     const day = new Date('2026-08-28T12:00:00');
     const usage: StoredAppUsage[] = [
       {
@@ -137,8 +138,37 @@ describe('sessionInsights', () => {
       usage,
       day
     );
-    expect(buckets[10].segments.map((segment) => segment.category).sort()).toEqual(['Safari', 'Xcode']);
+    expect(buckets[10].segments.map((segment) => segment.category).sort()).toEqual([
+      'Productivity',
+      'Reading',
+    ]);
     expect(buckets[10].seconds).toBe(1500);
+  });
+
+  test('keeps the five categories with the most time', () => {
+    const buckets = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      seconds: hour === 10 ? 2100 : 0,
+      segments:
+        hour === 10
+          ? [
+              { category: 'Social', seconds: 800 },
+              { category: 'Entertainment', seconds: 500 },
+              { category: 'Reading', seconds: 300 },
+              { category: 'Productivity', seconds: 200 },
+              { category: 'Creativity', seconds: 150 },
+              { category: 'Games', seconds: 100 },
+              { category: 'Other', seconds: 50 },
+            ]
+          : [],
+    }));
+    expect(topUsageCategories(buckets).map((row) => row.name)).toEqual([
+      'Social',
+      'Entertainment',
+      'Reading',
+      'Productivity',
+      'Creativity',
+    ]);
   });
 
   test('names apps that overlap a saved session', () => {

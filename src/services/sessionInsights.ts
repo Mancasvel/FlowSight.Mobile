@@ -4,6 +4,7 @@
  */
 
 import { getDailyStats, getHourlyAppUsage, getRecentSessions, type HourlyAppUsageRow } from '@/storage';
+import { screenTimeCategory } from '@/services/appCategory';
 import { localDateKey, startOfWeekMonday } from '@/utils/format';
 
 export type StoredSession = {
@@ -123,9 +124,10 @@ export function hourlyBucketsFromAppUsage(rows: StoredAppUsage[], day = new Date
     if (row.day !== dayKey || row.hour < 0 || row.hour > 23 || row.seconds <= 0) continue;
     const bucket = buckets[row.hour];
     bucket.seconds += row.seconds;
-    const existing = bucket.segments.find((segment) => segment.category === row.app_name);
+    const category = screenTimeCategory(row.app_name, row.bundle_id);
+    const existing = bucket.segments.find((segment) => segment.category === category);
     if (existing) existing.seconds += row.seconds;
-    else bucket.segments.push({ category: row.app_name, seconds: row.seconds });
+    else bucket.segments.push({ category, seconds: row.seconds });
   }
 
   return buckets;
@@ -166,6 +168,32 @@ export function appsDuringSession(
 
   return [...totals.entries()]
     .sort((left, right) => right[1] - left[1])
+    .map(([name, seconds]) => ({ name, seconds }));
+}
+
+const TOP_CATEGORY_LIMIT = 5;
+
+function categoryLabel(name: string): string {
+  if (name === 'General' || name === 'Focus' || name === 'Focus app') return 'Focus';
+  if (name === 'Other app') return 'Other';
+  return name;
+}
+
+export function topUsageCategories(
+  buckets: HourBucket[],
+  limit = TOP_CATEGORY_LIMIT
+): { name: string; seconds: number }[] {
+  const totals = new Map<string, number>();
+  for (const bucket of buckets) {
+    for (const segment of bucket.segments ?? []) {
+      if (segment.seconds <= 0) continue;
+      const name = categoryLabel(segment.category);
+      totals.set(name, (totals.get(name) ?? 0) + segment.seconds);
+    }
+  }
+  return [...totals.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, limit)
     .map(([name, seconds]) => ({ name, seconds }));
 }
 

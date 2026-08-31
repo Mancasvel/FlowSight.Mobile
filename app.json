@@ -19,7 +19,7 @@
       "requireFullScreen": true,
       "bundleIdentifier": "ai.flowsight.mobile",
       "appleTeamId": "MLUJVMGV82",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "LSRequiresIPhoneOS": true,
         "UIDeviceFamily": [1],

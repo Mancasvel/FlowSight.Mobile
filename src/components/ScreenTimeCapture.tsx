@@ -13,9 +13,9 @@ function todayWindow() {
 }
 
 /**
- * Off-screen Device Activity report. Apple only exposes app names inside
- * the extension; this view is what makes the extension run and write the
- * snapshot that we then persist to SQLite.
+ * On-screen Device Activity report. Apple only runs the extension when the
+ * view is in the window, so this stays in-layout (almost invisible) and
+ * writes the snapshot we persist to SQLite.
  */
 export function ScreenTimeCapture() {
   const [window, setWindow] = useState(todayWindow);
@@ -28,8 +28,8 @@ export function ScreenTimeCapture() {
       void persistUsageSnapshot();
     };
 
-    const startup = setTimeout(tick, 1600);
-    const interval = setInterval(tick, 12_000);
+    const startup = setTimeout(tick, 2500);
+    const interval = setInterval(tick, 8_000);
     return () => {
       clearTimeout(startup);
       clearInterval(interval);
@@ -54,10 +54,8 @@ export function ScreenTimeCapture() {
 const styles = StyleSheet.create({
   host: {
     position: 'absolute',
-    width: 320,
-    height: 240,
-    left: -400,
-    top: 0,
+    width: 8,
+    height: 8,
     opacity: 0.02,
     overflow: 'hidden',
   },

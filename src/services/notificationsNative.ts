@@ -5,9 +5,9 @@
 
 import * as Notifications from 'expo-notifications';
 import { getPreference, setPreference } from '@/storage';
+import { getFocusGoalMinutes } from './focusGoal';
 
 const PREFERENCE_KEY = 'notifications_enabled';
-export const FOCUS_GOAL_SECONDS = 25 * 60;
 
 const IDS = {
   morning: 'flowsight.daily.morning',
@@ -65,13 +65,15 @@ export async function scheduleFocusGoalNotification(elapsedSeconds: number): Pro
   await Notifications.cancelScheduledNotificationAsync(IDS.goal);
   if (!(await areEnabled())) return;
 
-  const remaining = FOCUS_GOAL_SECONDS - elapsedSeconds;
+  const goalSeconds = (await getFocusGoalMinutes()) * 60;
+  const remaining = goalSeconds - elapsedSeconds;
   if (remaining < 15) return;
 
+  const minutes = Math.round(goalSeconds / 60);
   await Notifications.scheduleNotificationAsync({
     identifier: IDS.goal,
     content: {
-      title: '25 minutes in',
+      title: `${minutes} minutes in`,
       body: 'You are in flow. Stay with this block, or stop when the work is done.',
       sound: false,
     },

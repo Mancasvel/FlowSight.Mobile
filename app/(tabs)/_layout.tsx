@@ -3,7 +3,6 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { StyleSheet, View } from 'react-native';
-import { ScreenTimeCapture } from '@/components';
 import { useTheme } from '@/theme';
 import { fontFamily } from '@/theme/tokens';
 
@@ -12,7 +11,6 @@ export default function TabsLayout() {
 
   return (
     <View style={styles.root}>
-      <ScreenTimeCapture />
       <Tabs
         screenOptions={{
         headerShown: false,

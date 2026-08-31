@@ -179,10 +179,10 @@ export async function persistUsageSnapshot(): Promise<boolean> {
     await replaceHourlyAppUsage({
       capturedAt: new Date(snapshot.capturedAtMs || Date.now()).toISOString(),
       hours: snapshot.hours
-        .filter((hour) => Number.isInteger(hour.hour) && hour.hour >= 0 && hour.hour <= 23)
+        .filter((hour) => Number.isFinite(hour.hour) && hour.hour >= 0 && hour.hour <= 23)
         .map((hour) => ({
           day: dayForHour(hour),
-          hour: hour.hour,
+          hour: Math.round(hour.hour),
           apps: hour.apps,
         })),
     });
