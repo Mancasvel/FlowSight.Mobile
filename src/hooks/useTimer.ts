@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useTimer — Hook for timer state with automatic re-render.
  */
 

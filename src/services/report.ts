@@ -1,5 +1,5 @@
 /**
- * Report Service ù Local deterministic insights plus optional cloud reports.
+ * Report Service ‚Äî Local deterministic insights plus optional cloud reports.
  */
 
 import { getDailyStats, getWeeklyStats } from '@/storage';
@@ -11,7 +11,7 @@ import { canCloudAI, getEntitlements } from './entitlements';
 export interface LocalReport {
   date: string;
   totalSeconds: number;
-  categories: Array<{ category: string; totalSeconds: number; sessionCount: number }>;
+  categories: { category: string; totalSeconds: number; sessionCount: number }[];
   focus: ReturnType<typeof summarizeFocus>;
 }
 
@@ -46,7 +46,7 @@ export async function generateLocalReport(date = getTodayDate()): Promise<LocalR
 export async function generateCloudReport(periodDays = 7): Promise<CloudReport> {
   const entitlements = await getEntitlements();
   if (!canCloudAI(entitlements)) {
-    throw new Error('Cloud insights are not available in this iPhone app');
+    throw new Error('Cloud insights are not available in this Android app');
   }
 
   const weekStart = getWeekStartDate();
@@ -63,7 +63,7 @@ export async function generateCloudReport(periodDays = 7): Promise<CloudReport> 
 
 export function formatReportText(report: LocalReport): string {
   const lines = [
-    `FlowSight ù ${report.date}`,
+    `FlowSight ‚Äî ${report.date}`,
     `Total: ${formatDurationShort(report.totalSeconds)}`,
     `Deep focus: ${formatDurationShort(report.focus.deep_focus_seconds)}`,
     '',

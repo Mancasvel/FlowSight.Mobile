@@ -1,51 +1,22 @@
 import React from 'react';
-import { View, StyleSheet, type ViewStyle } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { useTheme } from '@/theme';
-import { radius, shadows, layout } from '@/theme/tokens';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { layout } from '@/theme/tokens';
+import { Glass } from './Glass';
 
 export function Card({
   children,
   style,
+  padded = true,
 }: {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
+  padded?: boolean;
 }) {
-  const { theme } = useTheme();
-
-  return (
-    <BlurView
-      intensity={42}
-      tint={theme.statusBar === 'dark' ? 'light' : 'dark'}
-      style={[
-        styles.card,
-        shadows.md,
-        {
-          backgroundColor: theme.card,
-          borderColor: theme.glassBorder,
-          shadowColor: theme.cardShadow,
-        },
-        style,
-      ]}
-    >
-      <View style={[styles.highlight, { backgroundColor: theme.glassHighlight }]} />
-      {children}
-    </BlurView>
-  );
+  return <Glass style={[padded ? styles.padded : null, style]}>{children}</Glass>;
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
+  padded: {
     padding: layout.cardPadding,
-    overflow: 'hidden',
-  },
-  highlight: {
-    position: 'absolute',
-    top: 0,
-    left: 24,
-    right: 24,
-    height: StyleSheet.hairlineWidth,
   },
 });

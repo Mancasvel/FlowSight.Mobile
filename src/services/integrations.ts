@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Integration Service — Jira, Linear, and Notion connections.
  *
  * OAuth flows use server-side exchange (no client secrets in bundle).
@@ -14,7 +14,7 @@ import * as Linking from 'expo-linking';
 export async function connectJira(): Promise<string | null> {
   const entitlements = await getEntitlements();
   if (!canIntegrations(entitlements)) {
-    throw new Error('Desktop integrations are not available in this iPhone app');
+    throw new Error('Desktop integrations are not available in this Android app');
   }
 
   // The actual OAuth URL is generated server-side
@@ -40,7 +40,7 @@ export async function fetchJiraTasks() {
 export async function connectLinear(): Promise<string | null> {
   const entitlements = await getEntitlements();
   if (!canIntegrations(entitlements)) {
-    throw new Error('Desktop integrations are not available in this iPhone app');
+    throw new Error('Desktop integrations are not available in this Android app');
   }
 
   const client = getClient();
@@ -74,7 +74,7 @@ export async function getNotionStatus() {
 export async function startNotionOAuth() {
   const entitlements = await getEntitlements();
   if (!canIntegrations(entitlements)) {
-    throw new Error('Desktop integrations are not available in this iPhone app');
+    throw new Error('Desktop integrations are not available in this Android app');
   }
 
   const client = getClient();

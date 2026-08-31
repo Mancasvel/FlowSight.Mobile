@@ -1,12 +1,11 @@
-﻿/**
+/**
  * Privacy Service — Consent management, data export, and deletion.
  *
  * Implements per-purpose consent (tracking, sync, cloud AI, analytics).
  * All consent is versioned, affirmative, and revocable.
  */
 
-import { getPreference, setPreference } from '@/storage';
-import { clearSession } from '@/storage';
+import { clearSession, getPreference, setPreference } from '@/storage';
 import { getClient } from '@/services/auth';
 import { clearEntitlementsCache } from '@/services/entitlements';
 
@@ -92,13 +91,13 @@ export async function exportLocalData(): Promise<Record<string, unknown>> {
 
   return {
     exportDate: new Date().toISOString(),
-    appVersion: '0.1.0',
-    platform: 'mobile',
+    appVersion: '1.2.0',
+    platform: 'android',
     activityEvents: events,
     preferences: preferences,
     coachMessages: coachMessages,
     privacyNote: 'This export contains local FlowSight timer sessions and preferences. ' +
-      'Apple Screen Time (app names and per-app duration) is not stored here and cannot be exported. ' +
+      'Android Usage Access rows (app names and per-app duration) are not stored here and cannot be exported. ' +
       'Cloud data is included only if you opted in to sync and signed in.',
   };
 }

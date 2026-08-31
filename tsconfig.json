@@ -12,6 +12,7 @@
     "noEmit": true,
     "isolatedModules": true,
     "incremental": true,
+    "types": ["vitest/globals"],
     "paths": {
       "@/*": ["./src/*"],
       "flowsight-device-activity": ["./modules/flowsight-device-activity/src/index.ts"]

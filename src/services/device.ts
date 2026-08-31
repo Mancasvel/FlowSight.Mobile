@@ -3,7 +3,7 @@
  */
 
 import { getClient } from './auth';
-import { getDeviceId, getInstallationId } from '@/storage';
+import { getInstallationId } from '@/storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 

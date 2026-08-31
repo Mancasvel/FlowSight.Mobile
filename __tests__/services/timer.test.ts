@@ -10,7 +10,7 @@ const storage = vi.hoisted(() => ({
 
 vi.mock('@/storage', () => storage);
 vi.mock('@/utils/id', () => ({ createId: () => 'session-id' }));
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+vi.mock('react-native', () => ({ Platform: { OS: 'android' } }));
 
 const deviceActivity = vi.hoisted(() => ({
   startDeviceActivityCapture: vi.fn().mockResolvedValue({ started: false, warning: null }),
@@ -18,6 +18,11 @@ const deviceActivity = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/deviceActivity', () => deviceActivity);
+vi.mock('@/services/notifications', () => ({
+  scheduleFocusGoalNotification: vi.fn().mockResolvedValue(undefined),
+  cancelFocusGoalNotification: vi.fn().mockResolvedValue(undefined),
+  markFocusDayCompleted: vi.fn().mockResolvedValue(undefined),
+}));
 
 import {
   getElapsedSeconds,
@@ -70,7 +75,7 @@ describe('timer service', () => {
     expect(getTimerState()).toBe('idle');
   });
 
-  test('saves ios_device_activity when Screen Time capture started', async () => {
+  test('saves android_usage_stats when Usage Access capture started', async () => {
     deviceActivity.startDeviceActivityCapture.mockResolvedValueOnce({
       started: true,
       warning: null,
@@ -86,8 +91,8 @@ describe('timer service', () => {
     expect(result?.durationSeconds).toBe(0);
     expect(storage.insertActivityEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        source: 'ios_device_activity',
-        capture_source: 'device_activity',
+        source: 'android_usage_stats',
+        capture_source: 'usage_stats',
         category: 'General',
       })
     );

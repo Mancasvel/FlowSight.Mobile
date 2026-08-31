@@ -21,8 +21,11 @@ export function formatDuration(totalSeconds: number): string {
  * Format seconds to human-readable duration (e.g., "2h 30m").
  */
 export function formatDurationShort(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  if (seconds > 0 && seconds < 60) return `${seconds}s`;
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
 
   if (hours === 0) return `${minutes}m`;
   if (minutes === 0) return `${hours}h`;
@@ -61,21 +64,39 @@ export function formatShortDate(dateStr: string): string {
 }
 
 /**
+ * Return a YYYY-MM-DD key in the device's local timezone.
+ */
+export function localDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Monday at 00:00 local time for the week containing `date`.
+ */
+export function startOfWeekMonday(date: Date): Date {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const weekday = start.getDay();
+  const offset = weekday === 0 ? -6 : 1 - weekday;
+  start.setDate(start.getDate() + offset);
+  return start;
+}
+
+/**
  * Get today's date as YYYY-MM-DD.
  */
 export function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
+  return localDateKey(new Date());
 }
 
 /**
  * Get start of week (Monday) as YYYY-MM-DD.
  */
 export function getWeekStartDate(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(now.setDate(diff));
-  return monday.toISOString().split('T')[0];
+  return localDateKey(startOfWeekMonday(new Date()));
 }
 
 /**

@@ -1,15 +1,13 @@
 {
   "name": "flowsight-device-activity",
-  "version": "0.1.0",
-  "description": "FlowSight Screen Time / UsageStats native module",
+  "version": "1.2.0",
+  "description": "Privacy-preserving Android UsageStats bridge for FlowSight",
   "main": "src/index",
   "types": "src/index.ts",
   "react-native": "src/index",
   "files": [
     "src",
-    "ios",
-    "plugin",
-    "app.plugin.js",
+    "android",
     "expo-module.config.json"
   ],
   "peerDependencies": {

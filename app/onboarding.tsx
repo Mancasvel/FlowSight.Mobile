@@ -1,23 +1,66 @@
-import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { AppState, View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, Button, Typography } from '@/components';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Screen, Button, Typography, BrandMark, Card } from '@/components';
+import { updatePrivacyConsent } from '@/privacy/privacyService';
+import { hasUsageAccess, openUsageAccessSettings } from '@/services/deviceActivity';
 import { setPreference } from '@/storage';
+import { useTheme } from '@/theme';
 import { spacing } from '@/theme/tokens';
 
 const STEPS = [
-  { title: 'Welcome to FlowSight', body: 'Start and Stop a focus block. We measure Apple Screen Time only inside that window.' },
-  { title: 'Your data stays on the iPhone', body: 'App names never leave the device. Timer totals stay in local SQLite unless you later opt in to sync.' },
-  { title: 'Pick apps once', body: 'Apple requires you to choose which apps to include. Without that list, Screen Time reports stay empty.' },
-  { title: 'Insights', body: 'After Stop you get a per-app timeline, warnings, and simple patterns. No purchases in this app.' },
-  { title: 'You are ready', body: 'Open Today and start a block. Finish it to see the session timeline.' },
+  {
+    icon: 'play-circle-outline' as const,
+    title: 'Welcome to FlowSight',
+    body: 'Play starts a block. Stop ends it. Android app activity is measured only inside that window.',
+  },
+  {
+    icon: 'lock-closed-outline' as const,
+    title: 'Your data stays on this device',
+    body: 'App names never leave this Android device. Timer totals stay in local SQLite unless you later opt in to sync.',
+  },
+  {
+    icon: 'apps-outline' as const,
+    title: 'Enable Usage Access',
+    body: 'Android can report app names and foreground duration. FlowSight never reads screen contents, typing, messages, or browsing history.',
+  },
+  {
+    icon: 'pulse-outline' as const,
+    title: 'Live timeline',
+    body: 'While you work, the hour line updates locally. The manual timer still works if you skip Usage Access.',
+  },
+  {
+    icon: 'checkmark-circle-outline' as const,
+    title: 'You are ready',
+    body: 'Open Today, press Start, and watch the timeline. Press Stop when you are done.',
+  },
 ] as const;
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
   const [step, setStep] = useState(0);
+  const [usageAccess, setUsageAccess] = useState(false);
   const current = STEPS[step];
   const last = step === STEPS.length - 1;
+
+  useEffect(() => {
+    void hasUsageAccess().then(setUsageAccess);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void hasUsageAccess().then(setUsageAccess);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const continueOnboarding = async () => {
+    if (step === 2 && !usageAccess) {
+      await updatePrivacyConsent({ tracking: true });
+      await openUsageAccessSettings();
+      return;
+    }
+    setStep((value) => value + 1);
+  };
 
   const finish = async () => {
     await setPreference('onboarding_completed', 'true');
@@ -26,18 +69,60 @@ export default function OnboardingScreen() {
 
   return (
     <Screen>
-      <View style={styles.body}>
-        <Typography variant="caption">
-          {step + 1} / {STEPS.length}
+      <View style={styles.top}>
+        <BrandMark />
+        <Typography variant="kicker" color={theme.primary}>
+          {String(step + 1).padStart(2, '0')} / {String(STEPS.length).padStart(2, '0')}
         </Typography>
-        <Typography variant="title">{current.title}</Typography>
-        <Typography>{current.body}</Typography>
       </View>
+
+      <View style={styles.body}>
+        <Card style={styles.card}>
+          <View style={[styles.iconWrap, { backgroundColor: theme.surfaceTertiary }]}>
+            <Ionicons name={current.icon} size={28} color={theme.primary} />
+          </View>
+          <Typography variant="title">{current.title}</Typography>
+          <Typography>{current.body}</Typography>
+          {step === 2 ? (
+            <View style={[styles.permissionState, { backgroundColor: theme.surfaceSecondary, borderColor: theme.glassBorder }]}>
+              <Ionicons
+                name={usageAccess ? 'checkmark-circle' : 'information-circle-outline'}
+                size={20}
+                color={theme.primary}
+              />
+              <Typography variant="caption" style={styles.permissionCopy}>
+                {usageAccess
+                  ? 'Usage Access is enabled. FlowSight can build the local app timeline.'
+                  : 'You can skip this permission. The focus timer remains fully available.'}
+              </Typography>
+            </View>
+          ) : null}
+        </Card>
+      </View>
+
+      <View style={styles.dots}>
+        {STEPS.map((item, index) => (
+          <View
+            key={item.title}
+            style={[
+              styles.dot,
+              {
+                backgroundColor: index === step ? theme.primary : theme.border,
+                width: index === step ? 18 : 7,
+              },
+            ]}
+          />
+        ))}
+      </View>
+
       <View style={styles.actions}>
         {last ? (
           <Button label="Get started" onPress={() => void finish()} />
         ) : (
-          <Button label="Continue" onPress={() => setStep((value) => value + 1)} />
+          <Button
+            label={step === 2 && !usageAccess ? 'Open Usage Access' : 'Continue'}
+            onPress={() => void continueOnboarding()}
+          />
         )}
         <Button label="Skip" variant="ghost" onPress={() => void finish()} />
       </View>
@@ -46,6 +131,39 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  body: { flex: 1, justifyContent: 'center', gap: spacing.md },
-  actions: { gap: spacing.sm },
+  top: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  body: { flex: 1, justifyContent: 'center' },
+  card: { gap: spacing.lg, paddingVertical: spacing.xxxl },
+  iconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: spacing.lg,
+  },
+  dot: {
+    height: 7,
+    borderRadius: 4,
+  },
+  permissionState: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: spacing.md,
+  },
+  permissionCopy: { flex: 1 },
+  actions: { gap: spacing.sm, paddingBottom: spacing.md },
 });

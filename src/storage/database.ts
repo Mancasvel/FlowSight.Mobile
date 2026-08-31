@@ -339,8 +339,9 @@ export async function getRecentSessions(limit = 14) {
     end_at: string;
     duration_seconds: number;
     pause_count: number;
+    category: string | null;
   }>(
-    `SELECT id, start_at, end_at, duration_seconds, COALESCE(pause_count, 0) as pause_count
+    `SELECT id, start_at, end_at, duration_seconds, COALESCE(pause_count, 0) as pause_count, category
      FROM activity_events
      ORDER BY start_at DESC
      LIMIT ?`,

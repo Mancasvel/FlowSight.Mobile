@@ -31,12 +31,15 @@ Thumbs.db
 # Testing
 coverage/
 
-# Native
+# Native build outputs and local signing material
 /android/
-ios/Pods/
-ios/build/
-ios/*.xcworkspace
-ios/Podfile.lock
+android/.gradle/
+android/app/build/
+android/build/
+modules/flowsight-device-activity/android/build/
+.credentials/
+credentials.json
+play-service-account.json
 
 # EAS
 .eas/

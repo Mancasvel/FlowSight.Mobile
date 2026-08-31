@@ -1,15 +1,13 @@
 import { describe, test, expect } from 'vitest';
 /**
- * Contracts — Zod schema validation tests.
+ * Contracts â€” Zod schema validation tests.
  */
 
 import {
   ActivityEventSchema,
   EntitlementsSchema,
   CanonicalCategorySchema,
-  DataSourceSchema,
   CoachRequestSchema,
-  PrivacyPreferencesSchema,
   UserPreferencesSchema,
 } from '../../src/contracts/index';
 

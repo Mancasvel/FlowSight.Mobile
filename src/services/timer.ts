@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Timer Service — Reliable manual timer with persistence and recovery.
  *
  * Uses persisted timestamps, not setInterval as source of truth.
@@ -6,10 +6,20 @@
  */
 
 import { Platform } from 'react-native';
-import { saveActiveSession, getActiveSession, clearActiveSession, insertActivityEvent } from '@/storage';
-import { getDeviceId } from '@/storage';
+import {
+  saveActiveSession,
+  getActiveSession,
+  clearActiveSession,
+  insertActivityEvent,
+  getDeviceId,
+} from '@/storage';
 import { createId } from '@/utils/id';
 import { startDeviceActivityCapture, stopDeviceActivityCapture } from '@/services/deviceActivity';
+import {
+  cancelFocusGoalNotification,
+  markFocusDayCompleted,
+  scheduleFocusGoalNotification,
+} from './notifications';
 
 export type TimerState = 'idle' | 'running' | 'paused';
 
@@ -28,7 +38,7 @@ export interface TimerSession {
 
 let currentSession: TimerSession | null = null;
 let state: TimerState = 'idle';
-let listeners: Array<(state: TimerState, session: TimerSession | null) => void> = [];
+let listeners: ((state: TimerState, session: TimerSession | null) => void)[] = [];
 
 export function getTimerState(): TimerState {
   return state;
@@ -112,10 +122,12 @@ export async function startTimer(options?: {
     }
   } catch {
     if (currentSession?.id === id) {
-      currentSession.captureWarning = 'Could not start Screen Time capture. The timer still runs.';
+      currentSession.captureWarning = 'Could not start Android activity capture. The timer still runs.';
       notify();
     }
   }
+
+  void scheduleFocusGoalNotification(0);
 }
 
 export async function pauseTimer() {
@@ -140,6 +152,7 @@ export async function pauseTimer() {
   });
 
   notify();
+  void cancelFocusGoalNotification();
 }
 
 export async function resumeTimer() {
@@ -160,6 +173,7 @@ export async function resumeTimer() {
   });
 
   notify();
+  void scheduleFocusGoalNotification(getElapsedSeconds());
 }
 
 export async function stopTimer(): Promise<{
@@ -184,11 +198,11 @@ export async function stopTimer(): Promise<{
     id: session.id,
     client_event_id: session.id,
     device_id: deviceId,
-    source: (usedDeviceActivity ? 'ios_device_activity' : 'manual_timer') as
-      | 'ios_device_activity'
+    source: (usedDeviceActivity ? 'android_usage_stats' : 'manual_timer') as
+      | 'android_usage_stats'
       | 'manual_timer',
     source_platform: Platform.OS as 'ios' | 'android',
-    capture_source: usedDeviceActivity ? 'device_activity' : 'manual',
+    capture_source: usedDeviceActivity ? 'usage_stats' : 'manual',
     start_at: startedAt.toISOString(),
     end_at: now.toISOString(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -215,6 +229,7 @@ export async function stopTimer(): Promise<{
   currentSession = null;
   state = 'idle';
   notify();
+  void markFocusDayCompleted();
 
   return result;
 }
@@ -272,4 +287,9 @@ export async function recoverTimer(): Promise<void> {
   }
 
   notify();
+  if (state === 'running') {
+    void scheduleFocusGoalNotification(getElapsedSeconds());
+  } else {
+    void cancelFocusGoalNotification();
+  }
 }

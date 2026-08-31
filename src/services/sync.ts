@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Sync Service — Offline-first sync queue with backoff and idempotency.
  *
  * Uploads local activity events to Supabase when online.
@@ -8,7 +8,6 @@
 import { getUnsyncedEvents, markEventSynced, getPreference } from '@/storage';
 import { getClient } from '@/services/auth';
 
-const MAX_RETRIES = 5;
 const BATCH_SIZE = 20;
 
 let syncInProgress = false;
@@ -38,7 +37,7 @@ export async function syncNow(): Promise<{ synced: number; failed: number }> {
       console.error('[Sync] Upload failed:', error);
       failed = events.length;
     } else {
-      for (const event of events as Array<{ id: string }>) {
+      for (const event of events as { id: string }[]) {
         await markEventSynced(event.id);
         synced++;
       }

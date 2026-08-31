@@ -1,59 +1,78 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, Modal } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { DeviceActivityReportView, isNativeDeviceActivityAvailable } from '../../modules/flowsight-device-activity/src/index';
-import { Screen, Card, Typography } from '@/components';
+import { isNativeDeviceActivityAvailable } from '../../modules/flowsight-device-activity/src/index';
+import {
+  Screen,
+  Card,
+  Typography,
+  BrandMark,
+  StatusChip,
+  Notice,
+  ProgressBar,
+} from '@/components';
 import { useTimer } from '@/hooks';
 import {
   getCaptureWarning,
-  getLastSessionWindow,
-  hydrateLastSessionWindow,
   subscribeCaptureWarning,
-  subscribeSessionWindow,
 } from '@/services/deviceActivity';
 import { warningsForSession } from '@/services/sessionInsights';
+import {
+  DEFAULT_FOCUS_GOAL_MINUTES,
+  MAX_FOCUS_GOAL_MINUTES,
+  formatFocusGoal,
+  getFocusGoalMinutes,
+  setFocusGoalMinutes,
+} from '@/services/focusGoal';
+import { scheduleFocusGoalNotification } from '@/services/notifications';
 import { useTheme } from '@/theme';
 import { formatDuration } from '@/utils/format';
-import { radius, spacing } from '@/theme/tokens';
+import { fontFamily, radius, spacing } from '@/theme/tokens';
 
-const FOCUS_GOAL_SECONDS = 25 * 60;
-const RING_SIZE = 250;
-const RING_STROKE = 10;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const MAX_GOAL_HOURS = Math.floor(MAX_FOCUS_GOAL_MINUTES / 60);
 
 export default function TodayScreen() {
   const { theme } = useTheme();
   const timer = useTimer();
-  const [sessionWindow, setSessionWindow] = useState(getLastSessionWindow);
   const [captureWarning, setCaptureWarning] = useState(getCaptureWarning);
   const [sessionWarnings, setSessionWarnings] = useState<string[]>([]);
-  const progress = Math.min(timer.elapsed / FOCUS_GOAL_SECONDS, 1);
+  const [goalMinutes, setGoalMinutes] = useState(DEFAULT_FOCUS_GOAL_MINUTES);
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [draftHours, setDraftHours] = useState(0);
+  const [draftMinutes, setDraftMinutes] = useState(DEFAULT_FOCUS_GOAL_MINUTES);
+  const goalSeconds = goalMinutes * 60;
+  const progress = Math.min(timer.elapsed / Math.max(goalSeconds, 1), 1);
   const dateLabel = useMemo(
     () =>
       new Intl.DateTimeFormat('en', {
-        weekday: 'long',
-        month: 'long',
+        weekday: 'short',
+        month: 'short',
         day: 'numeric',
       }).format(new Date()),
     []
   );
 
   useEffect(() => {
-    void hydrateLastSessionWindow();
-    const unsubscribeWindow = subscribeSessionWindow(setSessionWindow);
     const unsubscribeWarning = subscribeCaptureWarning(setCaptureWarning);
-    return () => {
-      unsubscribeWindow();
-      unsubscribeWarning();
-    };
+    void getFocusGoalMinutes().then(setGoalMinutes);
+    return unsubscribeWarning;
   }, []);
 
   const warning = timer.session?.captureWarning ?? captureWarning;
   const nativeCapture = Boolean(timer.session?.deviceActivityStarted);
-  const showReport = timer.isIdle && sessionWindow != null;
+  const pauseCount = timer.session?.pauseCount ?? 0;
+  const draftTotal = draftHours * 60 + draftMinutes;
+
+  const headline = timer.isRunning
+    ? 'In flow.'
+    : timer.isPaused
+      ? 'On hold.'
+      : "What's next?";
+
+  const statusTone = timer.isRunning ? 'live' : timer.isPaused ? 'paused' : 'idle';
+  const statusLabel = timer.isRunning ? 'Live' : timer.isPaused ? 'Paused' : 'Ready';
 
   const toggleTimer = () => {
     if (timer.isIdle) {
@@ -67,6 +86,7 @@ export default function TodayScreen() {
   };
 
   const finishSession = async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const result = await timer.stop();
     if (!result) return;
     setSessionWarnings(
@@ -78,255 +98,441 @@ export default function TodayScreen() {
     );
   };
 
+  const applyGoal = async (minutes: number) => {
+    const next = await setFocusGoalMinutes(minutes);
+    setGoalMinutes(next);
+    void Haptics.selectionAsync();
+    if (!timer.isIdle) {
+      void scheduleFocusGoalNotification(timer.elapsed);
+    }
+  };
+
+  const openGoal = () => {
+    setDraftHours(Math.floor(goalMinutes / 60));
+    setDraftMinutes(goalMinutes % 60);
+    setGoalOpen(true);
+  };
+
+  const saveGoal = () => {
+    void applyGoal(draftTotal);
+    setGoalOpen(false);
+  };
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View>
-            <Typography variant="caption" style={{ color: theme.primary }}>
-              {dateLabel.toUpperCase()}
-            </Typography>
-            <Typography variant="title">Find your flow.</Typography>
-          </View>
-          <View style={[styles.avatar, { backgroundColor: theme.glassStrong, borderColor: theme.glassBorder }]}>
-            <Ionicons name="sparkles" size={19} color={theme.primary} />
+          <BrandMark />
+          <View style={[styles.dateChip, { borderColor: theme.glassBorder, backgroundColor: theme.glass }]}>
+            <Typography variant="caption">{dateLabel}</Typography>
           </View>
         </View>
 
+        <View style={styles.heroCopy}>
+          <Typography variant="kicker" color={theme.primary}>
+            Today
+          </Typography>
+          <Typography variant="title">{headline}</Typography>
+          <Typography variant="caption">
+            {timer.isIdle
+              ? 'Start a block. App activity is measured only while the timer runs.'
+              : nativeCapture
+                ? 'Pause holds the clock. Stop ends the block.'
+                : 'Timer only. Per-app time needs Android Usage Access.'}
+          </Typography>
+        </View>
+
         <Card style={styles.timerCard}>
-          <View style={styles.ringWrap}>
-            <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ring}>
-              <Defs>
-                <SvgGradient id="timerGradient" x1="0" y1="0" x2="1" y2="1">
-                  <Stop offset="0" stopColor="#9B7CFF" />
-                  <Stop offset="1" stopColor="#26C6F7" />
-                </SvgGradient>
-              </Defs>
-              <Circle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_RADIUS}
-                stroke={theme.surfaceTertiary}
-                strokeWidth={RING_STROKE}
-                fill="transparent"
-              />
-              <Circle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_RADIUS}
-                stroke="url(#timerGradient)"
-                strokeWidth={RING_STROKE}
-                strokeLinecap="round"
-                strokeDasharray={RING_CIRCUMFERENCE}
-                strokeDashoffset={RING_CIRCUMFERENCE * (1 - progress)}
-                fill="transparent"
-                rotation="-90"
-                origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
-              />
-            </Svg>
-            <View style={styles.timerContent}>
-              <View style={[styles.statusDot, { backgroundColor: timer.isRunning ? '#36D399' : theme.textTertiary }]} />
-              <Typography variant="caption">
-                {timer.isRunning ? 'IN FOCUS' : timer.isPaused ? 'PAUSED' : 'READY'}
-              </Typography>
-              <Typography variant="display" style={styles.clock}>
-                {formatDuration(timer.elapsed)}
-              </Typography>
-              <Typography variant="caption">
-                {timer.isIdle
-                  ? `${Math.round(FOCUS_GOAL_SECONDS / 60)} min goal`
-                  : nativeCapture
-                    ? 'Measuring Screen Time'
-                    : 'Timer only. Per-app time needs the native iOS build.'}
-              </Typography>
-            </View>
+          <StatusChip label={statusLabel} tone={statusTone} />
+          <Typography variant="display" style={styles.clock}>
+            {formatDuration(timer.elapsed)}
+          </Typography>
+          <View style={styles.progressBlock}>
+            <ProgressBar progress={progress} />
+            <Typography variant="caption" color={theme.primary} style={styles.goalPct}>
+              {Math.round(progress * 100)}%
+            </Typography>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={timer.isRunning ? 'Pause timer' : timer.isPaused ? 'Resume timer' : 'Start timer'}
-            onPress={toggleTimer}
-            style={({ pressed }) => [styles.mainAction, pressed && styles.pressed]}
-          >
-            <LinearGradient
-              colors={['#9B7CFF', '#6241E9']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.mainActionGradient}
-            >
-              <Ionicons
-                name={timer.isRunning ? 'pause' : 'play'}
-                size={30}
-                color="#FFFFFF"
-                style={!timer.isRunning ? styles.playIcon : undefined}
-              />
-            </LinearGradient>
-          </Pressable>
-
-          {!timer.isIdle ? (
+          <View style={styles.metaRow}>
+            <Meta label="Pauses" value={String(pauseCount)} />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Stop and save session"
-              onPress={() => void finishSession()}
-              style={styles.stopAction}
+              accessibilityLabel="Edit focus goal"
+              onPress={openGoal}
+              style={({ pressed }) => [styles.meta, styles.metaEnd, pressed && styles.pressed]}
             >
-              <Ionicons name="stop" size={13} color={theme.textSecondary} />
-              <Typography variant="caption">Finish session</Typography>
+              <Typography variant="kicker" color={theme.textTertiary}>
+                Goal
+              </Typography>
+              <Typography variant="caption" color={theme.text}>
+                {formatFocusGoal(goalMinutes)}
+              </Typography>
             </Pressable>
-          ) : null}
+          </View>
+
+          <View style={styles.actions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={timer.isRunning ? 'Pause timer' : timer.isPaused ? 'Resume timer' : 'Start timer'}
+              onPress={toggleTimer}
+              style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
+            >
+              <LinearGradient
+                colors={['#6366F1', '#00B8A9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryGradient}
+              >
+                <Ionicons
+                  name={timer.isRunning ? 'pause' : 'play'}
+                  size={18}
+                  color="#FFFFFF"
+                  style={!timer.isRunning ? styles.playIcon : undefined}
+                />
+                <Typography color="#FFFFFF" style={styles.primaryLabel}>
+                  {timer.isRunning ? 'Pause' : timer.isPaused ? 'Resume' : 'Start block'}
+                </Typography>
+              </LinearGradient>
+            </Pressable>
+
+            {!timer.isIdle ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Stop session"
+                onPress={() => void finishSession()}
+                style={({ pressed }) => [
+                  styles.stopAction,
+                  { borderColor: theme.glassBorder, backgroundColor: theme.glass },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons name="stop" size={12} color={theme.text} />
+                <Typography variant="caption" color={theme.text}>
+                  Stop
+                </Typography>
+              </Pressable>
+            ) : null}
+          </View>
         </Card>
 
         {timer.error ? (
-          <View style={[styles.notice, { backgroundColor: 'rgba(232, 73, 103, 0.12)' }]}>
-            <Ionicons name="alert-circle-outline" size={18} color="#E84967" />
-            <Typography variant="caption" color="#E84967">
-              {timer.error}
-            </Typography>
-          </View>
+          <Notice tone="error" icon="alert-circle-outline">
+            {timer.error}
+          </Notice>
         ) : null}
 
         {!isNativeDeviceActivityAvailable() ? (
-          <View style={[styles.notice, { backgroundColor: 'rgba(155, 124, 255, 0.12)' }]}>
-            <Ionicons name="phone-portrait-outline" size={18} color={theme.primary} />
-            <Typography variant="caption">
-              Expo Go cannot see which apps you use. Apple only allows that in a native build with Family Controls (npx expo run:ios --device).
-            </Typography>
-          </View>
+          <Notice tone="info" icon="phone-portrait-outline">
+            Expo Go cannot read Android Usage Access. Install the native Android build to enable the private app timeline.
+          </Notice>
         ) : null}
 
         {warning && isNativeDeviceActivityAvailable() ? (
-          <View style={[styles.notice, { backgroundColor: 'rgba(155, 124, 255, 0.12)' }]}>
-            <Ionicons name="phone-portrait-outline" size={18} color={theme.primary} />
-            <Typography variant="caption">{warning}</Typography>
-          </View>
+          <Notice tone="info" icon="phone-portrait-outline">
+            {warning}
+          </Notice>
         ) : null}
 
         {sessionWarnings.map((message) => (
-          <View key={message} style={[styles.notice, { backgroundColor: 'rgba(245, 158, 11, 0.14)' }]}>
-            <Ionicons name="warning-outline" size={18} color="#F59E0B" />
-            <Typography variant="caption">{message}</Typography>
-          </View>
+          <Notice key={message} tone="warn" icon="warning-outline">
+            {message}
+          </Notice>
         ))}
-
-        {showReport && sessionWindow ? (
-          <Card style={styles.reportCard}>
-            <View style={styles.sectionHeader}>
-              <Typography variant="subtitle">This session</Typography>
-              <Typography variant="caption">Time by app</Typography>
-            </View>
-            <DeviceActivityReportView
-              startMs={sessionWindow.startMs}
-              endMs={sessionWindow.endMs}
-              segment="hourly"
-              style={styles.reportView}
-            />
-          </Card>
-        ) : (
-          <Card style={styles.insightCard}>
-            <View style={[styles.insightIcon, { backgroundColor: theme.surfaceTertiary }]}>
-              <Ionicons name="apps-outline" size={21} color={theme.primary} />
-            </View>
-            <View style={styles.insightCopy}>
-              <Typography variant="subtitle">
-                {timer.isIdle ? 'Start to time a session' : 'Session in progress'}
-              </Typography>
-              <Typography variant="caption">
-                {isNativeDeviceActivityAvailable()
-                  ? timer.isIdle
-                    ? 'Start opens a Screen Time window. Stop shows how long each app was used.'
-                    : 'Pause only stops the timer. Screen Time covers Start to Stop.'
-                  : 'The timer stores total minutes. App names are blocked in Expo Go by Apple.'}
-              </Typography>
-            </View>
-          </Card>
-        )}
       </ScrollView>
+
+      <Modal
+        visible={goalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setGoalOpen(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <Pressable
+            accessible={false}
+            importantForAccessibility="no"
+            style={StyleSheet.absoluteFill}
+            onPress={() => setGoalOpen(false)}
+          />
+          <View
+            accessibilityViewIsModal
+            style={[styles.sheet, { backgroundColor: theme.background, borderColor: theme.glassBorder }]}
+          >
+            <Typography variant="kicker" color={theme.primary}>
+              Focus goal
+            </Typography>
+            <Typography variant="title">{formatFocusGoal(draftTotal)}</Typography>
+            <TrackSlider
+              label="Hours"
+              value={draftHours}
+              min={0}
+              max={MAX_GOAL_HOURS}
+              format={(value) => `${value}h`}
+              onChange={(hours) => {
+                setDraftHours(hours);
+                setDraftMinutes((mins) => {
+                  if (hours === 0 && mins < 5) return 5;
+                  if (hours === MAX_GOAL_HOURS) return 0;
+                  return mins;
+                });
+              }}
+            />
+            <TrackSlider
+              label="Minutes"
+              value={draftMinutes}
+              min={draftHours === 0 ? 5 : 0}
+              max={draftHours === MAX_GOAL_HOURS ? 0 : 59}
+              format={(value) => `${value}m`}
+              onChange={setDraftMinutes}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save focus goal"
+              onPress={saveGoal}
+              style={({ pressed }) => [styles.sheetSave, pressed && styles.pressed]}
+            >
+              <LinearGradient
+                colors={['#6366F1', '#00B8A9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.sheetSaveFill}
+              >
+                <Typography color="#FFFFFF" style={styles.primaryLabel}>
+                  Save
+                </Typography>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
 
+function TrackSlider({
+  label,
+  value,
+  min,
+  max,
+  format,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  format: (value: number) => string;
+  onChange: (value: number) => void;
+}) {
+  const { theme } = useTheme();
+  const trackRef = useRef<View>(null);
+  const originX = useRef(0);
+  const trackWidth = useRef(1);
+  const span = Math.max(1, max - min);
+  const ratio = Math.min(1, Math.max(0, (value - min) / span));
+
+  const measureTrack = () => {
+    trackRef.current?.measureInWindow((x, _y, width) => {
+      originX.current = x;
+      trackWidth.current = Math.max(1, width);
+    });
+  };
+
+  const setFromPageX = (pageX: number) => {
+    const nextRatio = Math.min(1, Math.max(0, (pageX - originX.current) / trackWidth.current));
+    onChange(Math.round(min + nextRatio * span));
+  };
+
+  const adjust = (direction: -1 | 1) => {
+    onChange(Math.min(max, Math.max(min, value + direction)));
+  };
+
+  return (
+    <View
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={label}
+      accessibilityValue={{ min, max, now: value, text: format(value) }}
+      accessibilityActions={[
+        { name: 'increment', label: `Increase ${label.toLowerCase()}` },
+        { name: 'decrement', label: `Decrease ${label.toLowerCase()}` },
+      ]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'increment') adjust(1);
+        if (event.nativeEvent.actionName === 'decrement') adjust(-1);
+      }}
+      style={styles.sliderBlock}
+    >
+      <View style={styles.sliderHeader}>
+        <Typography variant="kicker" color={theme.textTertiary}>
+          {label}
+        </Typography>
+        <Typography variant="caption">{format(value)}</Typography>
+      </View>
+      <View
+        ref={trackRef}
+        onLayout={measureTrack}
+        onStartShouldSetResponder={() => min !== max}
+        onMoveShouldSetResponder={() => min !== max}
+        onResponderGrant={(event) => {
+          measureTrack();
+          setFromPageX(event.nativeEvent.pageX);
+        }}
+        onResponderMove={(event) => setFromPageX(event.nativeEvent.pageX)}
+        style={[styles.sliderTrack, { backgroundColor: theme.surfaceTertiary }]}
+      >
+        <View style={[styles.sliderFill, { width: `${ratio * 100}%`, backgroundColor: theme.primary }]} />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.sliderThumb,
+            {
+              left: `${ratio * 100}%`,
+              backgroundColor: theme.background,
+              borderColor: theme.primary,
+            },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
+
+function Meta({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
+  return (
+    <View style={styles.meta}>
+      <Typography variant="kicker" color={theme.textTertiary}>
+        {label}
+      </Typography>
+      <Typography variant="caption" color={theme.text}>
+        {value}
+      </Typography>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  content: { gap: spacing.xl, paddingBottom: 110 },
+  content: { gap: spacing.xl, paddingBottom: 120 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+  dateChip: {
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
+  heroCopy: { gap: 6 },
   timerCard: {
     alignItems: 'center',
+    gap: spacing.md,
     paddingVertical: spacing.xxl,
-    borderRadius: radius.glass,
   },
-  ringWrap: {
-    width: RING_SIZE,
-    height: RING_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
+  clock: { fontSize: 52, lineHeight: 58 },
+  progressBlock: {
+    width: '100%',
+    gap: 8,
   },
-  ring: { position: 'absolute' },
-  timerContent: { alignItems: 'center', gap: 5 },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  clock: { fontSize: 43, lineHeight: 52 },
-  mainAction: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    marginTop: -2,
-    shadowColor: '#6241E9',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.32,
-    shadowRadius: 20,
+  goalPct: {
+    textAlign: 'right',
   },
-  mainActionGradient: {
-    flex: 1,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.58)',
-  },
-  playIcon: { marginLeft: 3 },
-  pressed: { transform: [{ scale: 0.95 }], opacity: 0.9 },
-  stopAction: {
+  metaRow: {
+    width: '100%',
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingTop: spacing.md,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingTop: spacing.sm,
   },
-  notice: {
+  meta: { alignItems: 'flex-start', gap: 2, flex: 1 },
+  metaEnd: { alignItems: 'flex-end' },
+  actions: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
+    paddingTop: spacing.sm,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+  primaryAction: {
+    flex: 1,
+    height: 52,
+    borderRadius: radius.lg,
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
   },
-  reportCard: { borderRadius: radius.glass },
-  reportView: { height: 280, width: '100%' },
-  insightCard: {
+  primaryGradient: {
+    flex: 1,
+    borderRadius: radius.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.42)',
   },
-  insightIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+  primaryLabel: {
+    fontFamily: fontFamily.bodySemibold,
+    fontSize: 16,
+  },
+  playIcon: { marginLeft: 2 },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+  stopAction: {
+    height: 52,
+    paddingHorizontal: 16,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.32)',
+    padding: spacing.md,
+  },
+  sheet: {
+    gap: spacing.lg,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+  },
+  sliderBlock: { gap: 10 },
+  sliderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  sliderTrack: {
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+  },
+  sliderFill: {
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 10,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    width: 22,
+    height: 22,
+    marginLeft: -11,
+    borderRadius: 11,
+    borderWidth: 2,
+  },
+  sheetSave: {
+    height: 52,
+    borderRadius: radius.lg,
+  },
+  sheetSaveFill: {
+    flex: 1,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  insightCopy: { flex: 1, gap: 2 },
 });

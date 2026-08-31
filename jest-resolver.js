@@ -10,12 +10,12 @@ module.exports = (request, options) => {
       const tsPath = request + '.ts';
       try {
         return options.defaultResolver(tsPath, options);
-      } catch (e2) {
+      } catch (_e2) {
         // Try index.ts
         const indexPath = path.join(request, 'index.ts');
         try {
           return options.defaultResolver(indexPath, options);
-        } catch (e3) {
+        } catch (_e3) {
           throw e; // Throw original error
         }
       }

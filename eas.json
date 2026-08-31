@@ -1,33 +1,36 @@
 {
   "cli": {
-    "version": ">= 12.0.0"
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
-      "developmentClient": true,
       "distribution": "internal",
-      "ios": {
-        "simulator": false,
-        "resourceClass": "m-medium"
+      "android": {
+        "buildType": "apk"
       }
     },
     "preview": {
-      "distribution": "store",
-      "ios": {
-        "resourceClass": "m-medium"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {
       "autoIncrement": true,
-      "ios": {
-        "resourceClass": "m-medium"
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "armeabi-v7a,arm64-v8a"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
   "submit": {
     "production": {
-      "ios": {
-        "ascAppId": "YOUR_ASC_APP_ID"
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
       }
     }
   }

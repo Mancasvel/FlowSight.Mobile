@@ -8,7 +8,7 @@
  * implementation for all 12 scenarios.
  */
 
-import { summarizeFocus, type ActivitySample, THRESHOLDS } from '../index';
+import { summarizeFocus, type ActivitySample } from '../index';
 
 // ─── Fixtures (from focus_timeline_cases.json) ────────────────────────────────
 

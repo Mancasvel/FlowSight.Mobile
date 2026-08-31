@@ -1,6 +1,6 @@
 {
-  "platforms": ["apple"],
-  "apple": {
-    "modules": ["FlowSightDeviceActivityModule"]
+  "platforms": ["android"],
+  "android": {
+    "modules": ["ai.flowsight.deviceactivity.FlowSightDeviceActivityModule"]
   }
 }

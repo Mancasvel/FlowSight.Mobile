@@ -1,17 +1,5 @@
-/**
- * Device Activity Module — Screen Time (iOS) / UsageStats (Android).
- *
- * iOS cannot return app names to JavaScript. Per-app breakdown is rendered
- * inside a Device Activity Report Extension via DeviceActivityReportView.
- * Expo Go does not include this native module; use `npx expo run:ios`.
- */
-
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { Platform } from 'react-native';
-
-export {
-  DeviceActivityReportView,
-  type DeviceActivityReportViewProps,
-} from './DeviceActivityReportView';
 
 export interface DeviceActivityData {
   packageName: string;
@@ -20,11 +8,16 @@ export interface DeviceActivityData {
   lastUsed: string;
 }
 
+export interface HourlyDeviceActivityData extends DeviceActivityData {
+  hour: number;
+}
+
 export interface DeviceActivityPermission {
   granted: boolean;
-  platform: 'ios' | 'android';
-  method: 'family_controls' | 'usage_stats' | 'none';
+  platform: 'android' | 'unsupported';
+  method: 'usage_stats' | 'none';
   status?: string;
+  settingsOpened?: boolean;
   error?: string;
 }
 
@@ -33,104 +26,69 @@ export type SessionWindow = {
   endMs: number;
 };
 
+type NativeActivityData = {
+  packageName?: string;
+  appName?: string;
+  usageSeconds?: number;
+  lastUsed?: string | number;
+};
+
 type NativeModule = {
   isAvailable: () => Promise<boolean>;
-  checkAuthorization: () => Promise<DeviceActivityPermission & Record<string, unknown>>;
-  requestAuthorization: () => Promise<DeviceActivityPermission & Record<string, unknown>>;
-  hasSelection: () => Promise<boolean>;
-  presentActivityPicker: () => Promise<{ saved: boolean; error?: string }>;
+  checkAuthorization: () => Promise<DeviceActivityPermission>;
+  requestAuthorization: () => Promise<DeviceActivityPermission>;
   startSessionMonitoring: () => Promise<{ started: boolean; startMs: number; error?: string }>;
   stopSessionMonitoring: () => Promise<{ stopped: boolean; startMs: number; endMs: number }>;
   getLastSessionWindow: () => Promise<SessionWindow | null>;
-  getActivity: (startDateMs: number, endDateMs: number) => Promise<DeviceActivityData[]>;
+  getActivity: (startDateMs: number, endDateMs: number) => Promise<NativeActivityData[]>;
+  getHourlyActivity: (
+    startDateMs: number,
+    endDateMs: number
+  ) => Promise<(NativeActivityData & { hour?: number })[]>;
   getTrackingStatus: () => Promise<{ isTracking: boolean; platform: string; method: string }>;
 };
 
-function getNative(): NativeModule | null {
-  try {
-    const core = require('expo-modules-core') as Record<string, unknown>;
-    const optional = core.requireOptionalNativeModule as
-      | ((name: string) => NativeModule | null)
-      | undefined;
-    if (typeof optional === 'function') {
-      return optional('FlowSightDeviceActivity');
-    }
-    const required = core.requireNativeModule as ((name: string) => NativeModule) | undefined;
-    return required ? required('FlowSightDeviceActivity') : null;
-  } catch {
-    return null;
-  }
-}
+const nativeModule = requireOptionalNativeModule<NativeModule>('FlowSightDeviceActivity');
+
+const unsupportedPermission: DeviceActivityPermission = {
+  granted: false,
+  platform: 'unsupported',
+  method: 'none',
+};
 
 export function isNativeDeviceActivityAvailable(): boolean {
-  return getNative() != null;
+  return Platform.OS === 'android' && nativeModule !== null;
 }
 
 export function isDeviceActivityAvailable(): boolean {
-  return Platform.OS === 'ios' || Platform.OS === 'android';
-}
-
-function fallbackPermission(granted = false): DeviceActivityPermission {
-  if (Platform.OS === 'ios') {
-    return { granted, platform: 'ios', method: 'family_controls' };
-  }
-  if (Platform.OS === 'android') {
-    return { granted, platform: 'android', method: 'usage_stats' };
-  }
-  return { granted: false, platform: 'ios', method: 'none' };
+  return isNativeDeviceActivityAvailable();
 }
 
 export async function checkDeviceActivityPermission(): Promise<DeviceActivityPermission> {
-  const native = getNative();
-  if (!native) return fallbackPermission(false);
+  if (!isNativeDeviceActivityAvailable() || !nativeModule) return unsupportedPermission;
   try {
-    const result = await native.checkAuthorization();
+    return await nativeModule.checkAuthorization();
+  } catch (error) {
     return {
-      granted: Boolean(result.granted),
-      platform: (result.platform as DeviceActivityPermission['platform']) ?? fallbackPermission().platform,
-      method: (result.method as DeviceActivityPermission['method']) ?? fallbackPermission().method,
-      status: typeof result.status === 'string' ? result.status : undefined,
-      error: typeof result.error === 'string' ? result.error : undefined,
+      granted: false,
+      platform: 'android',
+      method: 'usage_stats',
+      error: error instanceof Error ? error.message : 'authorization_check_failed',
     };
-  } catch {
-    return fallbackPermission(false);
   }
 }
 
 export async function requestDeviceActivityPermission(): Promise<DeviceActivityPermission> {
-  const native = getNative();
-  if (!native) return fallbackPermission(false);
+  if (!isNativeDeviceActivityAvailable() || !nativeModule) return unsupportedPermission;
   try {
-    const result = await native.requestAuthorization();
+    return await nativeModule.requestAuthorization();
+  } catch (error) {
     return {
-      granted: Boolean(result.granted),
-      platform: (result.platform as DeviceActivityPermission['platform']) ?? fallbackPermission().platform,
-      method: (result.method as DeviceActivityPermission['method']) ?? fallbackPermission().method,
-      status: typeof result.status === 'string' ? result.status : undefined,
-      error: typeof result.error === 'string' ? result.error : undefined,
+      granted: false,
+      platform: 'android',
+      method: 'usage_stats',
+      error: error instanceof Error ? error.message : 'settings_open_failed',
     };
-  } catch {
-    return fallbackPermission(false);
-  }
-}
-
-export async function hasActivitySelection(): Promise<boolean> {
-  const native = getNative();
-  if (!native?.hasSelection) return false;
-  try {
-    return Boolean(await native.hasSelection());
-  } catch {
-    return false;
-  }
-}
-
-export async function presentActivityPicker(): Promise<{ saved: boolean }> {
-  const native = getNative();
-  if (!native?.presentActivityPicker) return { saved: false };
-  try {
-    return await native.presentActivityPicker();
-  } catch {
-    return { saved: false };
   }
 }
 
@@ -139,19 +97,17 @@ export async function startSessionMonitoring(): Promise<{
   startMs: number;
   error?: string;
 }> {
-  const native = getNative();
-  if (!native?.startSessionMonitoring) {
-    return { started: false, startMs: Date.now() };
+  if (!nativeModule) {
+    return { started: false, startMs: Date.now(), error: 'native_module_unavailable' };
   }
-  return native.startSessionMonitoring();
+  return nativeModule.startSessionMonitoring();
 }
 
 export async function stopSessionMonitoring(): Promise<SessionWindow | null> {
-  const native = getNative();
-  if (!native?.stopSessionMonitoring) return null;
+  if (!nativeModule) return null;
   try {
-    const result = await native.stopSessionMonitoring();
-    if (!result?.startMs || result.startMs <= 0 || !result.endMs) return null;
+    const result = await nativeModule.stopSessionMonitoring();
+    if (!result.stopped || result.startMs <= 0 || result.endMs <= result.startMs) return null;
     return { startMs: result.startMs, endMs: result.endMs };
   } catch {
     return null;
@@ -159,29 +115,56 @@ export async function stopSessionMonitoring(): Promise<SessionWindow | null> {
 }
 
 export async function getLastSessionWindow(): Promise<SessionWindow | null> {
-  const native = getNative();
-  if (!native?.getLastSessionWindow) return null;
+  if (!nativeModule) return null;
   try {
-    return await native.getLastSessionWindow();
+    const result = await nativeModule.getLastSessionWindow();
+    if (!result || result.startMs <= 0 || result.endMs <= result.startMs) return null;
+    return result;
   } catch {
     return null;
   }
 }
 
-export async function getDeviceActivity(
-  startDate: Date,
-  endDate: Date
-): Promise<DeviceActivityData[]> {
+export async function getDeviceActivity(startDate: Date, endDate: Date): Promise<DeviceActivityData[]> {
+  if (!nativeModule || endDate <= startDate) return [];
   const permission = await checkDeviceActivityPermission();
   if (!permission.granted) return [];
 
-  const native = getNative();
-  if (!native) return [];
-  try {
-    return await native.getActivity(startDate.getTime(), endDate.getTime());
-  } catch {
-    return [];
-  }
+  const rows = await nativeModule.getActivity(startDate.getTime(), endDate.getTime());
+  return rows
+    .filter((row) => (row.usageSeconds ?? 0) > 0)
+    .map((row) => ({
+      packageName: row.packageName ?? '',
+      appName: row.appName || row.packageName || 'Unknown app',
+      usageSeconds: Math.max(0, Math.round(row.usageSeconds ?? 0)),
+      lastUsed:
+        typeof row.lastUsed === 'number'
+          ? new Date(row.lastUsed).toISOString()
+          : row.lastUsed ?? '',
+    }));
+}
+
+export async function getHourlyDeviceActivity(
+  startDate: Date,
+  endDate: Date
+): Promise<HourlyDeviceActivityData[]> {
+  if (!nativeModule || endDate <= startDate) return [];
+  const permission = await checkDeviceActivityPermission();
+  if (!permission.granted) return [];
+
+  const rows = await nativeModule.getHourlyActivity(startDate.getTime(), endDate.getTime());
+  return rows
+    .filter((row) => (row.usageSeconds ?? 0) > 0 && Number.isInteger(row.hour))
+    .map((row) => ({
+      hour: Math.min(23, Math.max(0, row.hour ?? 0)),
+      packageName: row.packageName ?? '',
+      appName: row.appName || row.packageName || 'Unknown app',
+      usageSeconds: Math.max(0, Math.round(row.usageSeconds ?? 0)),
+      lastUsed:
+        typeof row.lastUsed === 'number'
+          ? new Date(row.lastUsed).toISOString()
+          : row.lastUsed ?? '',
+    }));
 }
 
 export async function getTrackingStatus(): Promise<{
@@ -189,13 +172,6 @@ export async function getTrackingStatus(): Promise<{
   platform: string;
   method: string;
 }> {
-  const native = getNative();
-  if (!native?.getTrackingStatus) {
-    return {
-      isTracking: false,
-      platform: Platform.OS,
-      method: Platform.OS === 'ios' ? 'family_controls' : 'usage_stats',
-    };
-  }
-  return native.getTrackingStatus();
+  if (!nativeModule) return { isTracking: false, platform: Platform.OS, method: 'none' };
+  return nativeModule.getTrackingStatus();
 }

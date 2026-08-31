@@ -1,5 +1,5 @@
 /**
- * Entitlements Service — Server-side plan and feature flags.
+ * Entitlements Service â€” Server-side plan and feature flags.
  *
  * Free plan is the default until the server returns a paid entitlement.
  */

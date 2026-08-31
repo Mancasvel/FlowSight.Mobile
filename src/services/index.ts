@@ -13,4 +13,7 @@ export {
   getLastSessionWindow,
   hydrateLastSessionWindow,
   getCaptureWarning,
+  hasUsageAccess,
+  openUsageAccessSettings,
+  loadUsageForWindow,
 } from './deviceActivity';

@@ -1,9 +1,9 @@
 import { describe, test, expect } from 'vitest';
 /**
- * Focus Spec — Parity tests against Rust focus_semantics.rs fixtures.
+ * Focus Spec â€” Parity tests against Rust focus_semantics.rs fixtures.
  */
 
-import { summarizeFocus, type ActivitySample, THRESHOLDS } from '../../src/focus-spec/index';
+import { summarizeFocus, type ActivitySample } from '../../src/focus-spec/index';
 
 function sample(
   day: number, hour: number, minute: number,

@@ -1,5 +1,5 @@
 /**
- * Focus Spec ù TypeScript port of desktop focus semantics.
+ * Focus Spec ‚Äî TypeScript port of desktop focus semantics.
  *
  * Canonical rules:
  * - Deep focus = contiguous focus-eligible work ? 25 minutes

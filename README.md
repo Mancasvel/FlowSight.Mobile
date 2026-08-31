@@ -1,232 +1,103 @@
-# FlowSight Mobile
+# FlowSight Android
 
-**Privacy-first work activity tracking for iPhone.**
+Privacy-first focus tracking for Android 7 and newer. This repository is the Android counterpart of the iPhone `FlowSight.Mobile` app and ports its `1.2.0` release at commit `41410a9`.
 
-Companion app to [FlowSight Desktop](https://github.com/Mancasvel/FlowSight.AI) — tracks focus time, identifies work patterns, and provides AI coaching, all while keeping your data private. iOS only (iPhone, iOS 16+).
+## Functional parity
 
----
+- Start, pause, resume, stop, persist, and recover focus sessions.
+- Show a local hourly timeline and recent focus-session context through Android `UsageStatsManager`.
+- Match the iOS 1.2.0 three-tab experience, focus-goal editor, and optional local reminders.
+- Keep per-app rows on the device; they are rendered in memory and are not saved or uploaded.
+- Store timer totals locally in SQLite and sync them only after the user opts in.
+- Show local session insights, recent blocks, profile state, authentication, export, local deletion, and account deletion.
+- Support light/dark themes, edge-to-edge layouts, Android predictive Back, phones, tablets, rotation, and large font sizes.
 
-## Tech Stack
+The platform mechanism differs by necessity: iOS uses Family Controls and a Device Activity report extension; Android uses the system **Usage Access** screen and `UsageStatsManager`. The user-facing Start-to-Stop workflow remains the same.
 
-### Frontend — iPhone
+## Stack and requirements
 
-| Technology | Version | Purpose |
-|-----------|---------|---------|
-| **React Native** | 0.79 | Native UIKit UI |
-| **Expo SDK** | 53 | Toolchain, native modules, EAS Build |
-| **Expo Router** | v5 | File-based routing with typed routes |
-| **TypeScript** | 5.8 | Strict mode |
-| **React** | 19.0 | UI library |
+- Expo SDK 54 / React Native 0.81
+- Android compile/target SDK 36 (Android 16)
+- Minimum SDK 24 (Android 7)
+- JDK 21 from Android Studio
+- Android Studio with Platform 36, Build Tools 36.0.0, Platform Tools, Emulator, and an API 36 image
 
-### State & Data
+## Local setup
 
-| Technology | Purpose |
-|-----------|---------|
-| **expo-sqlite** | Local offline database — stores activity events, sync queue, preferences, coach history |
-| **expo-secure-store** | Secure token storage — Keychain |
-| **Supabase JS** | Auth (PKCE), Postgres queries, Edge Functions, Realtime |
-| **Zustand** | Minimal state management for ephemeral UI state only (no remote data duplication) |
-| **Zod** | Runtime payload validation at all network/storage boundaries |
+```powershell
+npm ci
+Copy-Item .env.example .env.local
+# Fill EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY only.
 
-### UI & Motion
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:Path = "$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:JAVA_HOME\bin;$env:Path"
 
-| Technology | Purpose |
-|-----------|---------|
-| **react-native-reanimated** | 60fps animations running on the native UI thread |
-| **react-native-gesture-handler** | Native gesture recognition (swipe, pan, pinch) |
-| **react-native-svg** | Charts and data visualization (no heavy charting library) |
-| **expo-haptics** | Discrete haptic feedback on timer start/pause/stop |
-| **expo-localization** | i18n ready, English as canonical language |
-
-### Native (iPhone)
-
-| Module | Implementation |
-|--------|----------------|
-| **flowsight-device-activity** | Swift — Family Controls / DeviceActivity report |
-| **Auth** | ASWebAuthenticationSession |
-| **Storage** | Keychain |
-
-### Backend
-
-| Technology | Purpose |
-|-----------|---------|
-| **Supabase Auth** | Email/password + Google OAuth with PKCE flow |
-| **Supabase Postgres** | Cloud data with Row Level Security (RLS) |
-| **Supabase Edge Functions** | AI Coach (Azure OpenAI), Insights (OpenRouter), Notion OAuth, Privacy rights |
-| **Supabase Storage** | File storage (if needed) |
-
-### Testing
-
-| Tool | Purpose |
-|------|---------|
-| **Vitest** | Unit tests for pure logic (focus-spec, contracts, format) |
-| **React Native Testing Library** | Component tests |
-| **Maestro** | E2E flow tests |
-| **XCUITest** | Native module tests (permissions, Keychain) |
-
-### Build & Deploy
-
-| Tool | Purpose |
-|------|---------|
-| **EAS Build** | Cloud iPhone builds (development, preview, production) |
-| **EAS Submit** | App Store submission |
-| **GitHub Actions** | CI — lint, typecheck, test |
-
----
-
-## Features
-
-- **Manual timer** — Start/stop focus sessions; iOS Screen Time report after Stop (native build)
-- **Deep Focus detection** — Canonical semantics ported from the desktop Rust agent
-- **Insights** — Daily/weekly summaries, category breakdowns, fragmentation metrics
-- **AI Coach** — Cloud-powered work pattern coaching (requires subscription)
-- **Integrations** — Jira, Linear, Notion (requires subscription)
-- **Offline-first** — All data stored locally, syncs when online
-- **Privacy-first** — Per-purpose consent, no screenshots, no keystrokes
-
----
-
-## Quick Start (iPhone)
-
-Expo Go cannot read Screen Time. Use a native development build on a physical iPhone.
-
-```bash
-npm install
-cp .env.example .env
-# Fill EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY
-
-# One-time: generate native iOS project and install on a connected iPhone
-npx expo prebuild -p ios
-npx expo run:ios --device
-
-# Later sessions (native app already installed)
-npm start
+npm run prebuild:android
+npm run android
 ```
 
-In Xcode, enable **Family Controls (Development)** on:
+Expo Go cannot load the custom UsageStats module. Use the native development build created by `npm run android`.
 
-- `ai.flowsight.mobile`
-- `ai.flowsight.mobile.DeviceActivityReport`
-- `ai.flowsight.mobile.DeviceActivityMonitor`
+The production profile enables R8, unused-resource shrinking, JavaScript bundle compression, and only the two Play Store ARM architectures. Debug builds keep the emulator architectures available.
 
-First Start: Screen Time permission, then pick apps once. Stop shows time per app.
+## Usage Access flow
 
-## Testing
+FlowSight explains its data use before opening Android Settings. The user must enable FlowSight under **Special app access → Usage access**. No Accessibility Service, screen capture, keystroke collection, URL history, or background polling is used.
 
-```bash
-npm test
-npm run typecheck
+The native module reads foreground/resume and pause/stop events for the requested on-device time window. FlowSight itself and the launcher are excluded from the report. Hourly app names and durations are aggregated in memory for the timeline and are not written to SQLite or sent to Supabase.
+
+## Focus reminders
+
+Focus reminders are optional. On Android 13 and newer, FlowSight requests `POST_NOTIFICATIONS` only after the user enables **Focus reminders**. The app schedules ordinary local notifications on the `focus-reminders` channel and does not request exact-alarm access.
+
+## Verification
+
+```powershell
+npm run verify
+npx expo-doctor@latest
+npm run export:android
 ```
 
-## App Store
+Native debug build:
 
-1. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list), enable Family Controls on the three App IDs above. For TestFlight/App Store, request [Family Controls distribution](https://developer.apple.com/contact/request/family-controls-distribution) for each ID.
-2. Set `submit.production.ios.ascAppId` in `eas.json` to your App Store Connect app id.
-3. Build and submit:
-
-```bash
-npm run build:production:ios
-npm run submit:ios
+```powershell
+npm run android
 ```
 
----
+Production Android App Bundle through EAS:
 
-## Project Structure
-
-```
-FlowSight.Mobile/
-├── app/                          # Expo Router screens
-│   ├── (tabs)/                   # Tab navigation (Today/Insights/Coach/You)
-│   ├── onboarding.tsx            # 6-step onboarding flow
-│   ├── auth.tsx                  # Login/register modal
-│   └── settings.tsx              # Settings screen
-├── src/
-│   ├── components/               # 9 reusable UI components
-│   ├── hooks/                    # useTimer, useAuth
-│   ├── services/                 # Business logic (10 services)
-│   │   ├── auth.ts               # Supabase Auth PKCE
-│   │   ├── timer.ts              # Manual timer with persistence
-│   │   ├── sync.ts               # Offline-first sync queue
-│   │   ├── coach.ts              # AI Coach chat
-│   │   ├── entitlements.ts       # Server-side plan management
-│   │   ├── integrations.ts       # Jira, Linear, Notion
-│   │   ├── report.ts             # Deterministic + cloud reports
-│   │   ├── profile.ts            # User profile & preferences
-│   │   └── device.ts             # Device registration
-│   ├── storage/                  # SQLite + SecureStore
-│   ├── theme/                    # Design tokens + ThemeProvider
-│   ├── contracts/                # Zod schemas + Supabase types
-│   ├── focus-spec/               # Focus semantics (TS port of Rust)
-│   ├── api-client/               # Supabase client wrapper
-│   ├── privacy/                  # Consent, export, deletion
-│   └── utils/                    # Format utilities
-├── modules/
-│   └── flowsight-device-activity/
-│       ├── ios/                  # Swift — Family Controls + report extension
-│       └── src/                  # JS API
-├── __tests__/                    # Unit tests (focus-spec, contracts, format, timer)
-├── .github/workflows/            # CI/CD (ci.yml, release.yml)
-├── docs/                         # Architecture, security, DPIA
-├── eas.json                      # EAS Build config
-└── vitest.config.ts              # Test config
+```powershell
+npm run build:production:android
+npm run submit:android
 ```
 
----
+The production profile emits an `.aab` and targets API 36. Before the first Play upload, connect this project to its own EAS project and configure Android upload credentials. Never reuse the iOS repository as the Android push remote.
 
-## Architecture
+## Play Store handoff
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    FlowSight Mobile                      │
-│                                                         │
-│  ┌─────────┐ ┌──────────┐ ┌────────┐ ┌────────┐       │
-│  │ Today   │ │ Insights │ │ Coach  │ │  You   │       │
-│  │ (timer) │ │ (stats)  │ │ (chat) │ │(profile│       │
-│  └────┬────┘ └────┬─────┘ └───┬────┘ └───┬────┘       │
-│       │           │           │          │             │
-│  ┌────▼───────────▼───────────▼──────────▼───────────┐ │
-│  │              Services Layer                        │ │
-│  │  Timer · Sync · Coach · Report · Integrations     │ │
-│  └────┬───────────┬───────────┬──────────┬───────────┘ │
-│       │           │           │          │             │
-│  ┌────▼───────────▼───────────▼──────────▼───────────┐ │
-│  │              Storage Layer                         │ │
-│  │  SQLite (offline) · SecureStore (Keychain)        │ │
-│  └───────────────────────────────────────────────────┘ │
-└─────────────────────────┬───────────────────────────────┘
-                          │ HTTPS/TLS
-                          ▼
-                  ┌──────────────┐
-                  │  Supabase    │
-                  │  Auth · RLS  │
-                  │  Edge Funcs  │
-                  └──────────────┘
-```
+See [docs/PLAY_STORE_RELEASE.md](docs/PLAY_STORE_RELEASE.md) for signing, Play Console, closed testing, account deletion, screenshots, Data safety, and release checks. The repository also includes:
 
----
+- [PRIVACY.md](PRIVACY.md): publish this policy at a public URL before submission.
+- [docs/DATA_SAFETY.md](docs/DATA_SAFETY.md): answers to use when completing Play Console's Data safety form.
+- `store-assets/`: Play icon, feature graphic, listing copy, and validated emulator screenshots.
 
-## Privacy
+The locally signed and Bundletool-validated release candidate is available at `dist/FlowSight-Android-1.2.0.aab`. Its SHA-256 and upload-certificate fingerprint are recorded in the release checklist. The `dist/` directory remains ignored so binaries and signing outputs are never committed by accident.
 
-- **No screenshots** — Manual timer only, no screen capture
-- **No keystrokes** — No keyboard monitoring
-- **Per-purpose consent** — Tracking, sync, cloud AI, analytics are separate opt-ins
-- **Local-first** — All data stored in SQLite, syncs only with consent
-- **Secure storage** — Tokens in Keychain, never AsyncStorage
-- **No secrets in bundle** — Only EXPO_PUBLIC_* variables (Supabase URL + anon key)
+## Repository safety
 
-See [PRIVACY.md](PRIVACY.md) for the full privacy notice.
+The only configured remote is `ios-source`, used as a read-only reference. Its push URL intentionally points to an invalid domain, preventing Android work from being pushed to the iOS repository by mistake.
 
----
+## Privacy and security
 
-## Related Repositories
-
-| Repository | Purpose |
-|-----------|---------|
-| [FlowSight.AI](https://github.com/Mancasvel/FlowSight.AI) | Desktop agent (Tauri + Rust + Windows) |
-| [FlowSight.Mobile](https://github.com/Mancasvel/FlowSight.Mobile) | iPhone app (React Native + Expo) — this repo |
-
----
+- Only public Supabase URL/anon-key values may use the `EXPO_PUBLIC_` prefix.
+- Session tokens use Android Keystore through `expo-secure-store`.
+- Usage Access is optional and revocable in Android Settings.
+- Cloud sync is optional and separate from Usage Access.
+- Account deletion is available in-app under **You → Settings**.
+- Secrets, keystores, service-account JSON files, and local environment files are ignored by Git.
 
 ## License
 
-AGPL-3.0 — See [LICENSE](LICENSE)
+AGPL-3.0 — see `LICENSE`.

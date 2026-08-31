@@ -1,5 +1,5 @@
 /**
- * Coach Service ù Cloud AI coaching with local conversation history.
+ * Coach Service ‚Äî Cloud AI coaching with local conversation history.
  */
 
 import { getClient } from './auth';
@@ -24,7 +24,7 @@ export interface CoachResult {
 export async function sendCoachMessage(message: string): Promise<CoachResult> {
   const entitlements = await getEntitlements();
   if (!canCloudAI(entitlements)) {
-    throw new Error('Cloud chat is not available in this iPhone app');
+    throw new Error('Cloud chat is not available in this Android app');
   }
 
   await saveCoachMessage({ id: createId(), role: 'user', content: message });

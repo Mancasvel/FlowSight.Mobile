@@ -1,5 +1,5 @@
 /**
- * Profile Service — User profile, privacy preferences, and teams.
+ * Profile Service â€” User profile, privacy preferences, and teams.
  */
 
 import type { Profile, PrivacyPreferences, Team } from '@/contracts';

@@ -160,7 +160,7 @@ export class FlowSightClient {
 
   async sendCoachMessage(message: string, options?: {
     teamId?: string;
-    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    history?: { role: 'user' | 'assistant'; content: string }[];
     localContext?: Record<string, unknown>;
   }) {
     const { data: { session } } = await this.supabase.auth.getSession();

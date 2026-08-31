@@ -1,13 +1,12 @@
 import { describe, test, expect } from 'vitest';
 /**
- * Format utilities — Unit tests.
+ * Format utilities â€” Unit tests.
  */
 
 import {
   formatDuration,
   formatDurationShort,
   getTodayDate,
-  getWeekStartDate,
   formatPercent,
 } from '../../src/utils/format';
 
@@ -20,6 +19,7 @@ describe('formatDuration', () => {
 });
 
 describe('formatDurationShort', () => {
+  test('keeps short activity reports meaningful', () => { expect(formatDurationShort(18)).toBe('18s'); });
   test('formats minutes only', () => { expect(formatDurationShort(900)).toBe('15m'); });
   test('formats hours only', () => { expect(formatDurationShort(3600)).toBe('1h'); });
   test('formats hours and minutes', () => { expect(formatDurationShort(5400)).toBe('1h 30m'); });

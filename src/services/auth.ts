@@ -1,5 +1,5 @@
 /**
- * Auth Service ù Supabase Auth with PKCE and secure session persistence.
+ * Auth Service ‚Äî Supabase Auth with PKCE and secure session persistence.
  *
  * Tokens live in Keychain (iOS) / Keystore (Android) via expo-secure-store.
  */

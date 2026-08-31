@@ -1,9 +1,12 @@
 /**
- * Local session patterns. No app names — Apple keeps those in Screen Time.
- * Used for on-device tips only; nothing is sent to a server.
+ * Local session patterns plus hourly Android Usage Access data.
+ * App names stay in memory: they are never written to SQLite or uploaded.
  */
 
 import { getDailyStats, getRecentSessions } from '@/storage';
+import { loadHourlyUsageForWindow } from '@/services/deviceActivity';
+import { screenTimeCategory } from '@/services/appCategory';
+import { localDateKey, startOfWeekMonday } from '@/utils/format';
 
 export type StoredSession = {
   id: string;
@@ -11,6 +14,18 @@ export type StoredSession = {
   end_at: string;
   duration_seconds: number;
   pause_count: number;
+  category?: string | null;
+};
+
+export type HourSegment = {
+  category: string;
+  seconds: number;
+};
+
+export type HourBucket = {
+  hour: number;
+  seconds: number;
+  segments: HourSegment[];
 };
 
 export type SessionPattern = {
@@ -25,12 +40,49 @@ export type YouStats = {
   streak: number;
 };
 
+export type WeekDayUsage = {
+  key: string;
+  label: string;
+  used: boolean;
+  isToday: boolean;
+  seconds: number;
+};
+
+export type StoredAppUsage = {
+  day: string;
+  hour: number;
+  app_id: string;
+  app_name: string;
+  bundle_id: string | null;
+  seconds: number;
+  is_focus?: number;
+  captured_at?: string;
+};
+
+export async function loadHourlyAppUsage(day = localDateKey(new Date())): Promise<StoredAppUsage[]> {
+  const [year, month, date] = day.split('-').map(Number);
+  const start = new Date(year, month - 1, date, 0, 0, 0, 0);
+  const dayEnd = new Date(year, month - 1, date + 1, 0, 0, 0, 0);
+  const end = new Date(Math.min(dayEnd.getTime(), Date.now()));
+  if (!Number.isFinite(start.getTime()) || end <= start) return [];
+
+  const rows = await loadHourlyUsageForWindow({ startMs: start.getTime(), endMs: end.getTime() });
+  return rows.map((row) => ({
+    day,
+    hour: row.hour,
+    app_id: row.packageName,
+    app_name: row.appName,
+    bundle_id: row.packageName,
+    seconds: row.usageSeconds,
+  }));
+}
+
 export async function loadRecentSessions(limit = 14): Promise<StoredSession[]> {
   return getRecentSessions(limit);
 }
 
 export async function loadYouStats(): Promise<YouStats> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey(new Date());
   const [daily, sessions] = await Promise.all([
     getDailyStats(today),
     getRecentSessions(60),
@@ -42,18 +94,193 @@ export async function loadYouStats(): Promise<YouStats> {
   };
 }
 
+export function sessionEndMs(session: StoredSession): number {
+  const start = new Date(session.start_at).getTime();
+  const explicitEnd = new Date(session.end_at).getTime();
+  if (Number.isFinite(explicitEnd) && explicitEnd > start) return explicitEnd;
+  return start + session.duration_seconds * 1000;
+}
+
+export function hourlyBucketsFromSessions(sessions: StoredSession[], day = new Date()): HourBucket[] {
+  const buckets: HourBucket[] = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    seconds: 0,
+    segments: [],
+  }));
+  const startDay = new Date(day);
+  startDay.setHours(0, 0, 0, 0);
+  const dayStart = startDay.getTime();
+  const dayEnd = dayStart + 86_400_000;
+
+  for (const session of sessions) {
+    let cursor = Math.max(new Date(session.start_at).getTime(), dayStart);
+    const sessionEnd = Math.min(sessionEndMs(session), dayEnd);
+    if (sessionEnd <= cursor) continue;
+    const category = session.category?.trim() || 'Focus';
+
+    while (cursor < sessionEnd) {
+      const hourDate = new Date(cursor);
+      hourDate.setMinutes(0, 0, 0);
+      const nextHour = hourDate.getTime() + 3_600_000;
+      const sliceEnd = Math.min(sessionEnd, nextHour);
+      const delta = (sliceEnd - cursor) / 1000;
+      const bucket = buckets[hourDate.getHours()];
+      bucket.seconds += delta;
+      const existing = bucket.segments.find((segment) => segment.category === category);
+      if (existing) existing.seconds += delta;
+      else bucket.segments.push({ category, seconds: delta });
+      cursor = sliceEnd;
+    }
+  }
+
+  return buckets;
+}
+
+export function hourlyBucketsFromAppUsage(rows: StoredAppUsage[], day = new Date()): HourBucket[] {
+  const dayKey = localDateKey(day);
+  const buckets: HourBucket[] = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    seconds: 0,
+    segments: [],
+  }));
+
+  for (const row of rows) {
+    if (row.day !== dayKey || row.hour < 0 || row.hour > 23 || row.seconds <= 0) continue;
+    const bucket = buckets[row.hour];
+    bucket.seconds += row.seconds;
+    const category = screenTimeCategory(row.app_name, row.bundle_id);
+    const existing = bucket.segments.find((segment) => segment.category === category);
+    if (existing) existing.seconds += row.seconds;
+    else bucket.segments.push({ category, seconds: row.seconds });
+  }
+
+  return buckets;
+}
+
+export function hourlyBucketsFromSources(
+  sessions: StoredSession[],
+  appUsage: StoredAppUsage[],
+  day = new Date()
+): HourBucket[] {
+  const fromApps = hourlyBucketsFromAppUsage(appUsage, day);
+  const fromSessions = hourlyBucketsFromSessions(sessions, day);
+  return fromApps.map((bucket, hour) => (bucket.seconds > 0 ? bucket : fromSessions[hour]));
+}
+
+function hourStartMs(day: string, hour: number): number {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Date(year, month - 1, date, hour, 0, 0, 0).getTime();
+}
+
+export function appsDuringSession(
+  session: StoredSession,
+  appUsage: StoredAppUsage[]
+): { name: string; seconds: number }[] {
+  const start = new Date(session.start_at).getTime();
+  const end = sessionEndMs(session);
+  const totals = new Map<string, number>();
+
+  for (const row of appUsage) {
+    const hourStart = hourStartMs(row.day, row.hour);
+    const hourEnd = hourStart + 3_600_000;
+    if (hourEnd <= start || hourStart >= end) continue;
+    const overlap = Math.min(end, hourEnd) - Math.max(start, hourStart);
+    if (overlap <= 0) continue;
+    const seconds = row.seconds * (overlap / 3_600_000);
+    totals.set(row.app_name, (totals.get(row.app_name) ?? 0) + seconds);
+  }
+
+  return [...totals.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .map(([name, seconds]) => ({ name, seconds }));
+}
+
+const TOP_CATEGORY_LIMIT = 5;
+
+function categoryLabel(name: string): string {
+  if (name === 'General' || name === 'Focus' || name === 'Focus app') return 'Focus';
+  if (name === 'Other app') return 'Other';
+  return name;
+}
+
+export function topUsageCategories(
+  buckets: HourBucket[],
+  limit = TOP_CATEGORY_LIMIT
+): { name: string; seconds: number }[] {
+  const totals = new Map<string, number>();
+  for (const bucket of buckets) {
+    for (const segment of bucket.segments ?? []) {
+      if (segment.seconds <= 0) continue;
+      const name = categoryLabel(segment.category);
+      totals.set(name, (totals.get(name) ?? 0) + segment.seconds);
+    }
+  }
+  return [...totals.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, limit)
+    .map(([name, seconds]) => ({ name, seconds }));
+}
+
+const FULL_DAY_SPAN_HOURS = 8;
+
+export function visibleHourBuckets(
+  buckets: HourBucket[],
+  nowHour = new Date().getHours()
+): HourBucket[] {
+  if (buckets.length !== 24) return buckets;
+
+  const used = buckets.filter((bucket) => bucket.seconds > 0).map((bucket) => bucket.hour);
+  if (used.length > 0) {
+    const span = Math.max(...used) - Math.min(...used);
+    if (span >= FULL_DAY_SPAN_HOURS) return buckets;
+  }
+
+  const center =
+    used.length === 0
+      ? nowHour
+      : used.reduce((best, hour) => (buckets[hour].seconds > buckets[best].seconds ? hour : best), used[0]);
+  const start = Math.max(0, Math.min(16, center - 3));
+  return buckets.slice(start, start + FULL_DAY_SPAN_HOURS);
+}
+
+export function weekActivityFromSessions(sessions: StoredSession[], now = new Date()): WeekDayUsage[] {
+  const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const start = startOfWeekMonday(now);
+  const todayKey = localDateKey(now);
+  const secondsByDay = new Map<string, number>();
+
+  for (const session of sessions) {
+    const key = localDateKey(new Date(session.start_at));
+    secondsByDay.set(key, (secondsByDay.get(key) ?? 0) + session.duration_seconds);
+  }
+
+  return labels.map((label, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    const key = localDateKey(date);
+    const seconds = secondsByDay.get(key) ?? 0;
+    return {
+      key,
+      label,
+      used: seconds > 0,
+      isToday: key === todayKey,
+      seconds,
+    };
+  });
+}
+
 export function streakFromSessions(sessions: StoredSession[]): number {
-  const days = new Set(sessions.map((session) => session.start_at.slice(0, 10)));
+  const days = new Set(sessions.map((session) => localDateKey(new Date(session.start_at))));
   const cursor = new Date();
-  const today = cursor.toISOString().slice(0, 10);
-  if (!days.has(today)) {
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  cursor.setHours(0, 0, 0, 0);
+  if (!days.has(localDateKey(cursor))) {
+    cursor.setDate(cursor.getDate() - 1);
   }
 
   let streak = 0;
-  while (days.has(cursor.toISOString().slice(0, 10))) {
+  while (days.has(localDateKey(cursor))) {
     streak += 1;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
+    cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
 }
@@ -64,7 +291,7 @@ export function patternsFromSessions(sessions: StoredSession[]): SessionPattern[
       {
         id: 'empty',
         title: 'No sessions yet',
-        body: 'Start and Stop a block. FlowSight only measures Screen Time inside that window.',
+        body: 'Start and Stop a block. FlowSight only measures Android app activity inside that window.',
       },
     ];
   }
@@ -93,7 +320,7 @@ export function patternsFromSessions(sessions: StoredSession[]): SessionPattern[
     patterns.push({
       id: 'short',
       title: 'Fragmented time',
-      body: `${short.length} sessions lasted under 5 minutes. Short blocks are fine; a longer Start to Stop window gives Screen Time more to show.`,
+      body: `${short.length} sessions lasted under 5 minutes. Short blocks are fine; a longer Start-to-Stop window gives Android more activity to show.`,
     });
   }
 
@@ -112,7 +339,7 @@ export function patternsFromSessions(sessions: StoredSession[]): SessionPattern[
     patterns.push({
       id: 'steady',
       title: 'Steady sessions',
-      body: 'Your last blocks look uninterrupted. The timeline is Apple Screen Time for Start to Stop only.',
+      body: 'Your last blocks look uninterrupted. The activity timeline covers Start to Stop only.',
     });
   }
 
@@ -128,16 +355,16 @@ export function warningsForSession(input: {
 
   if (!input.captureStarted) {
     warnings.push(
-      'This session saved the timer only. Screen Time needs permission and the apps you choose to measure.'
+      'This session saved the timer only. Per-app time needs Android Usage Access before the session starts.'
     );
   }
   if (input.pauseCount >= 2) {
     warnings.push(
-      `Paused ${input.pauseCount} times. Pause stops the timer; Screen Time still covers Start to Stop.`
+      `Paused ${input.pauseCount} times. Pause stops the timer; Android activity still covers Start to Stop.`
     );
   }
   if (input.durationSeconds < 60) {
-    warnings.push('Sessions under a minute often look empty in Screen Time.');
+    warnings.push('Sessions under a minute often contain too little app activity to summarize.');
   }
 
   return warnings;
