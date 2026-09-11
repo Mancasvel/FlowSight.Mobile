@@ -21,6 +21,19 @@ import {
   canUseFocusNotifications,
   setFocusNotificationsEnabled,
 } from '@/services/notifications';
+import {
+  areInsightNudgesEnabled,
+  setInsightNudgesEnabled,
+} from '@/services/localInsightNotify';
+import {
+  acceptOnDeviceAiNotice,
+  getOnDeviceAiConsent,
+  ON_DEVICE_AI_NOTICE_BODY,
+  ON_DEVICE_AI_NOTICE_TITLE,
+  ON_DEVICE_AI_NUDGE_CAPTION,
+  ON_DEVICE_AI_TOGGLE_CAPTION,
+  setOnDeviceAiEnabled,
+} from '@/privacy/onDeviceAi';
 import { useTheme } from '@/theme';
 import { spacing } from '@/theme/tokens';
 
@@ -30,12 +43,16 @@ export default function YouScreen() {
   const { user, isAuthenticated, logout } = useAuth();
   const initial = user?.email?.charAt(0).toUpperCase() ?? 'F';
   const [notify, setNotify] = useState(false);
+  const [insightNudge, setInsightNudge] = useState(false);
+  const [aiWriting, setAiWriting] = useState(false);
   const [needsAppPicker, setNeedsAppPicker] = useState(false);
   const nativeScreenTime = isNativeDeviceActivityAvailable();
 
   useFocusEffect(
     useCallback(() => {
       void areFocusNotificationsEnabled().then(setNotify);
+      void areInsightNudgesEnabled().then(setInsightNudge);
+      void getOnDeviceAiConsent().then((consent) => setAiWriting(consent.enabled));
       if (nativeScreenTime) {
         void hasActivitySelection().then((selected) => setNeedsAppPicker(!selected));
       }
@@ -53,6 +70,30 @@ export default function YouScreen() {
           : 'This install does not include reminder support yet. Rebuild the iOS app to enable them.'
       );
     }
+  };
+
+  const toggleAiWriting = async (next: boolean) => {
+    if (!next) {
+      await setOnDeviceAiEnabled(false);
+      setAiWriting(false);
+      setInsightNudge(false);
+      return;
+    }
+    const consent = await getOnDeviceAiConsent();
+    if (consent.noticeCurrent) {
+      const enabled = await setOnDeviceAiEnabled(true);
+      setAiWriting(enabled);
+      return;
+    }
+    Alert.alert(ON_DEVICE_AI_NOTICE_TITLE, ON_DEVICE_AI_NOTICE_BODY, [
+      { text: 'Not now', style: 'cancel' },
+      {
+        text: 'Accept',
+        onPress: () => {
+          void acceptOnDeviceAiNotice().then(() => setAiWriting(true));
+        },
+      },
+    ]);
   };
 
   const chooseMeasuredApps = async () => {
@@ -134,6 +175,27 @@ export default function YouScreen() {
               onValueChange={(next) => {
                 void toggleNotifications(next);
               }}
+            />
+          </Card>
+          <Card style={styles.notifyCard}>
+            <ToggleRow
+              label="On-device AI writing"
+              caption={ON_DEVICE_AI_TOGGLE_CAPTION}
+              value={aiWriting}
+              onValueChange={(next) => {
+                void toggleAiWriting(next);
+              }}
+            />
+          </Card>
+          <Card style={styles.notifyCard}>
+            <ToggleRow
+              label="On-device insights"
+              caption={ON_DEVICE_AI_NUDGE_CAPTION}
+              value={insightNudge}
+              onValueChange={(next) => {
+                void setInsightNudgesEnabled(next).then(setInsightNudge);
+              }}
+              disabled={!aiWriting}
             />
           </Card>
         </View>

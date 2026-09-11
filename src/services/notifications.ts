@@ -17,6 +17,12 @@ type NativeNotifications = {
   scheduleFocusGoalNotification: (elapsedSeconds: number) => Promise<void>;
   cancelFocusGoalNotification: () => Promise<void>;
   markFocusDayCompleted: () => Promise<void>;
+  scheduleInsightNotification: (payload: {
+    title: string;
+    body: string;
+    cardId: string;
+    signalId: string;
+  } | null) => Promise<boolean>;
 };
 
 let native: NativeNotifications | null | undefined;
@@ -113,5 +119,20 @@ export async function markFocusDayCompleted(): Promise<void> {
     await loadNative()?.markFocusDayCompleted();
   } catch {
     // Best-effort.
+  }
+}
+
+export async function scheduleInsightNotification(
+  payload: {
+    title: string;
+    body: string;
+    cardId: string;
+    signalId: string;
+  } | null
+): Promise<boolean> {
+  try {
+    return (await loadNative()?.scheduleInsightNotification(payload)) ?? false;
+  } catch {
+    return false;
   }
 }

@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlowSight",
     "slug": "flowsight",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "flowsight",
@@ -19,7 +19,7 @@
       "requireFullScreen": true,
       "bundleIdentifier": "ai.flowsight.mobile",
       "appleTeamId": "MLUJVMGV82",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
         "LSRequiresIPhoneOS": true,
         "UIDeviceFamily": [1],
@@ -28,7 +28,9 @@
       },
       "entitlements": {
         "com.apple.developer.family-controls": true,
-        "com.apple.security.application-groups": ["group.ai.flowsight.mobile"]
+        "com.apple.security.application-groups": ["group.ai.flowsight.mobile"],
+        "com.apple.developer.kernel.increased-memory-limit": true,
+        "com.apple.developer.kernel.extended-virtual-addressing": true
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -63,6 +65,14 @@
       "expo-sqlite",
       "expo-dev-client",
       "expo-notifications",
+      [
+        "llama.rn",
+        {
+          "enableEntitlements": false,
+          "forceCxx20": true,
+          "enableOpenCL": false
+        }
+      ],
       [
         "expo-build-properties",
         {

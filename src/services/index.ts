@@ -7,6 +7,7 @@ export {
   onAuthStateChange,
 } from './auth';
 export { getTimerState, getCurrentSession as getTimerSession, getElapsedSeconds, subscribe as subscribeTimer, startTimer, pauseTimer, resumeTimer, stopTimer, recoverTimer } from './timer';
+export { loadLocalPatterns, askLocalStats } from './localInsights';
 export {
   startDeviceActivityCapture,
   stopDeviceActivityCapture,

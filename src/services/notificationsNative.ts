@@ -4,6 +4,7 @@
  */
 
 import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
 import { getPreference, setPreference } from '@/storage';
 import { getFocusGoalMinutes } from './focusGoal';
 
@@ -14,6 +15,7 @@ const IDS = {
   afternoon: 'flowsight.daily.afternoon',
   evening: 'flowsight.daily.evening',
   goal: 'flowsight.session.goal',
+  insight: 'flowsight.insight.daily',
 } as const;
 
 Notifications.setNotificationHandler({
@@ -24,6 +26,24 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
+
+let responseBound = false;
+
+function bindInsightNotificationResponse() {
+  if (responseBound) return;
+  responseBound = true;
+  Notifications.addNotificationResponseReceivedListener((response) => {
+    const data = response.notification.request.content.data as {
+      type?: string;
+      cardId?: string;
+    };
+    if (data.type === 'local-insight' && data.cardId) {
+      void Linking.openURL(`flowsight://insights?card=${encodeURIComponent(data.cardId)}`);
+    }
+  });
+}
+
+bindInsightNotificationResponse();
 
 async function areEnabled(): Promise<boolean> {
   return (await getPreference(PREFERENCE_KEY)) === 'true';
@@ -58,7 +78,10 @@ export async function hydrateFocusNotifications(): Promise<void> {
 
 export async function disableFocusNotifications(): Promise<void> {
   await setPreference(PREFERENCE_KEY, 'false');
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  await Notifications.cancelScheduledNotificationAsync(IDS.morning);
+  await Notifications.cancelScheduledNotificationAsync(IDS.afternoon);
+  await Notifications.cancelScheduledNotificationAsync(IDS.evening);
+  await Notifications.cancelScheduledNotificationAsync(IDS.goal);
 }
 
 export async function scheduleFocusGoalNotification(elapsedSeconds: number): Promise<void> {
@@ -123,21 +146,89 @@ async function scheduleDailyReminders(): Promise<void> {
     },
   });
 
-  await Notifications.scheduleNotificationAsync({
-    identifier: IDS.evening,
-    content: {
-      title: 'Protect tomorrow',
-      body: 'A short block today makes tomorrow easier. Open FlowSight when you are ready.',
-      sound: false,
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: 20,
-      minute: 0,
-    },
-  });
+  const insightPending = await Notifications.getAllScheduledNotificationsAsync();
+  const insightOwnsEvening = insightPending.some((item) => item.identifier === IDS.insight);
+  if (!insightOwnsEvening) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: IDS.evening,
+      content: {
+        title: 'Protect tomorrow',
+        body: 'A short block today makes tomorrow easier. Open FlowSight when you are ready.',
+        sound: false,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 20,
+        minute: 0,
+      },
+    });
+  }
 
   await scheduleAfternoonNudge(false);
+}
+
+export async function scheduleInsightNotification(
+  payload: {
+    title: string;
+    body: string;
+    cardId: string;
+    signalId: string;
+  } | null
+): Promise<boolean> {
+  await Notifications.cancelScheduledNotificationAsync(IDS.insight);
+  if (!payload) {
+    if (await areEnabled()) {
+      await Notifications.cancelScheduledNotificationAsync(IDS.evening);
+      await Notifications.scheduleNotificationAsync({
+        identifier: IDS.evening,
+        content: {
+          title: 'Protect tomorrow',
+          body: 'A short block today makes tomorrow easier. Open FlowSight when you are ready.',
+          sound: false,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: 20,
+          minute: 0,
+        },
+      });
+    }
+    return false;
+  }
+
+  const granted = await requestFocusNotificationPermission();
+  if (!granted) return false;
+
+  await Notifications.cancelScheduledNotificationAsync(IDS.evening);
+  const fire = nextEvening(new Date());
+  await Notifications.scheduleNotificationAsync({
+    identifier: IDS.insight,
+    content: {
+      title: payload.title,
+      body: payload.body,
+      sound: false,
+      data: {
+        type: 'local-insight',
+        cardId: payload.cardId,
+        signalId: payload.signalId,
+        ask: false,
+      },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: fire,
+    },
+  });
+  return true;
+}
+
+function nextEvening(now: Date): Date {
+  const target = new Date(now);
+  target.setHours(20, 0, 0, 0);
+  if (now.getTime() >= target.getTime()) {
+    target.setTime(now.getTime() + 15 * 60 * 1000);
+  }
+  return target;
 }
 
 async function scheduleAfternoonNudge(afterCompletedBlock: boolean): Promise<void> {

@@ -9,6 +9,11 @@ import { getPreference, setPreference } from '@/storage';
 import { clearSession } from '@/storage';
 import { getClient } from '@/services/auth';
 import { clearEntitlementsCache } from '@/services/entitlements';
+import {
+  getOnDeviceAiConsent,
+  getOnDeviceAiEventLog,
+  onDeviceAiExportPayload,
+} from '@/privacy/onDeviceAi';
 
 export interface PrivacyConsent {
   tracking: boolean;
@@ -90,6 +95,8 @@ export async function exportLocalData(): Promise<Record<string, unknown>> {
   const preferences = await db.getAllAsync('SELECT * FROM user_preferences');
   const coachMessages = await db.getAllAsync('SELECT * FROM coach_messages');
   const hourlyAppUsage = await db.getAllAsync('SELECT * FROM hourly_app_usage');
+  const onDeviceAiConsent = await getOnDeviceAiConsent();
+  const onDeviceAiEvents = await getOnDeviceAiEventLog();
 
   return {
     exportDate: new Date().toISOString(),
@@ -99,8 +106,14 @@ export async function exportLocalData(): Promise<Record<string, unknown>> {
     hourlyAppUsage,
     preferences: preferences,
     coachMessages: coachMessages,
+    onDeviceAi: onDeviceAiExportPayload({
+      enabled: onDeviceAiConsent.enabled,
+      noticeVersion: onDeviceAiConsent.noticeVersion,
+      events: onDeviceAiEvents,
+    }),
     privacyNote: 'This export contains local FlowSight timer sessions, hourly app usage, and preferences. ' +
       'App names from Apple Screen Time stay on this iPhone and are not synced. ' +
+      'The on-device AI log has timestamps, engine, task, and a STATS fingerprint only. No prompts or completions. ' +
       'Cloud data is included only if you opted in to sync and signed in.',
   };
 }
@@ -128,6 +141,18 @@ export async function deleteLocalData(): Promise<void> {
     await disableFocusNotifications();
   } catch {
     // Native notifications may be unavailable.
+  }
+  try {
+    const { deleteQwenWeights } = await import('@/services/localAi/download');
+    await deleteQwenWeights();
+  } catch {
+    // Model file may not exist.
+  }
+  try {
+    const { setInsightNudgesEnabled } = await import('@/services/localInsightNotify');
+    await setInsightNudgesEnabled(false);
+  } catch {
+    // Best-effort.
   }
 }
 

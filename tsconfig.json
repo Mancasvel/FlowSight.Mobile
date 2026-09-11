@@ -14,7 +14,8 @@
     "incremental": true,
     "paths": {
       "@/*": ["./src/*"],
-      "flowsight-device-activity": ["./modules/flowsight-device-activity/src/index.ts"]
+      "flowsight-device-activity": ["./modules/flowsight-device-activity/src/index.ts"],
+      "flowsight-local-ai": ["./modules/flowsight-local-ai/src/index.ts"]
     },
     "baseUrl": "."
   },

@@ -9,6 +9,7 @@ export default defineConfig({
         __dirname,
         'modules/flowsight-device-activity/src/index.ts'
       ),
+      'flowsight-local-ai': path.resolve(__dirname, 'modules/flowsight-local-ai/src/index.ts'),
     },
   },
   test: {

@@ -13,8 +13,10 @@ export {
   getDailyStats,
   getWeeklyStats,
   getRecentSessions,
+  getSessionsSince,
   replaceHourlyAppUsage,
   getHourlyAppUsage,
+  getHourlyAppUsageSince,
   type HourlyAppUsageRow,
 } from './database';
 export { saveSession, getAccessToken, getRefreshToken, clearSession, getDeviceId, getInstallationId } from './secureStorage';

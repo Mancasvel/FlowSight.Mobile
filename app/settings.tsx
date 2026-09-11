@@ -15,10 +15,23 @@ import {
   updatePrivacyConsent,
 } from '@/privacy/privacyService';
 import {
+  acceptOnDeviceAiNotice,
+  getOnDeviceAiConsent,
+  ON_DEVICE_AI_NOTICE_BODY,
+  ON_DEVICE_AI_NOTICE_TITLE,
+  ON_DEVICE_AI_NUDGE_CAPTION,
+  ON_DEVICE_AI_TOGGLE_CAPTION,
+  setOnDeviceAiEnabled,
+} from '@/privacy/onDeviceAi';
+import {
   areFocusNotificationsEnabled,
   canUseFocusNotifications,
   setFocusNotificationsEnabled,
 } from '@/services/notifications';
+import {
+  areInsightNudgesEnabled,
+  setInsightNudgesEnabled,
+} from '@/services/localInsightNotify';
 import { useTheme } from '@/theme';
 import { spacing } from '@/theme/tokens';
 
@@ -28,12 +41,16 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [cloudSync, setCloudSync] = useState(false);
   const [notify, setNotify] = useState(false);
+  const [insightNudge, setInsightNudge] = useState(false);
+  const [aiWriting, setAiWriting] = useState(false);
   const [needsAppPicker, setNeedsAppPicker] = useState(false);
   const nativeScreenTime = isNativeDeviceActivityAvailable();
 
   useEffect(() => {
     void getPrivacyConsent().then((consent) => setCloudSync(consent.cloudSync));
     void areFocusNotificationsEnabled().then(setNotify);
+    void areInsightNudgesEnabled().then(setInsightNudge);
+    void getOnDeviceAiConsent().then((consent) => setAiWriting(consent.enabled));
     if (nativeScreenTime) {
       void hasActivitySelection().then((selected) => setNeedsAppPicker(!selected));
     }
@@ -63,6 +80,30 @@ export default function SettingsScreen() {
     }
   };
 
+  const toggleAiWriting = async (next: boolean) => {
+    if (!next) {
+      await setOnDeviceAiEnabled(false);
+      setAiWriting(false);
+      setInsightNudge(false);
+      return;
+    }
+    const consent = await getOnDeviceAiConsent();
+    if (consent.noticeCurrent) {
+      const enabled = await setOnDeviceAiEnabled(true);
+      setAiWriting(enabled);
+      return;
+    }
+    Alert.alert(ON_DEVICE_AI_NOTICE_TITLE, ON_DEVICE_AI_NOTICE_BODY, [
+      { text: 'Not now', style: 'cancel' },
+      {
+        text: 'Accept',
+        onPress: () => {
+          void acceptOnDeviceAiNotice().then(() => setAiWriting(true));
+        },
+      },
+    ]);
+  };
+
   const chooseMeasuredApps = async () => {
     const result = await presentActivityPicker();
     if (result.saved) setNeedsAppPicker(false);
@@ -87,7 +128,11 @@ export default function SettingsScreen() {
           onPress: () => {
             setBusy(true);
             void deleteLocalData()
-              .then(() => Alert.alert('Done', 'Local FlowSight data was deleted.'))
+              .then(() => {
+                setAiWriting(false);
+                setInsightNudge(false);
+                Alert.alert('Done', 'Local FlowSight data was deleted.');
+              })
               .finally(() => setBusy(false));
           },
         },
@@ -166,6 +211,30 @@ export default function SettingsScreen() {
               void toggleNotifications(next);
             }}
             disabled={busy}
+          />
+        </Card>
+
+        <Card style={styles.card}>
+          <ToggleRow
+            label="On-device AI writing"
+            caption={ON_DEVICE_AI_TOGGLE_CAPTION}
+            value={aiWriting}
+            onValueChange={(next) => {
+              void toggleAiWriting(next);
+            }}
+            disabled={busy}
+          />
+        </Card>
+
+        <Card style={styles.card}>
+          <ToggleRow
+            label="On-device insights"
+            caption={ON_DEVICE_AI_NUDGE_CAPTION}
+            value={insightNudge}
+            onValueChange={(next) => {
+              void setInsightNudgesEnabled(next).then(setInsightNudge);
+            }}
+            disabled={busy || !aiWriting}
           />
         </Card>
 

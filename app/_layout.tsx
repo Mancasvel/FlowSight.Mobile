@@ -6,12 +6,22 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme, brandFonts } from '@/theme';
 import { hydrateFocusNotifications } from '@/services/notifications';
+import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 
 function RootLayoutNav() {
   const { theme, isDark } = useTheme();
 
   useEffect(() => {
     void hydrateFocusNotifications();
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const parsed = Linking.parse(url);
+      if (parsed.path === 'insights' || parsed.hostname === 'insights') {
+        const card = typeof parsed.queryParams?.card === 'string' ? parsed.queryParams.card : undefined;
+        router.push({ pathname: '/insights', params: card ? { card } : undefined });
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   return (

@@ -4,6 +4,7 @@ vi.mock('@/storage', () => ({
   getDailyStats: vi.fn(),
   getRecentSessions: vi.fn(),
   getHourlyAppUsage: vi.fn(),
+  getHourlyAppUsageSince: vi.fn(),
 }));
 
 import {

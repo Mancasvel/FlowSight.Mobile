@@ -366,6 +366,24 @@ export async function getRecentSessions(limit = 14) {
   );
 }
 
+export async function getSessionsSince(startAt: string) {
+  const db = await getDatabase();
+  return db.getAllAsync<{
+    id: string;
+    start_at: string;
+    end_at: string;
+    duration_seconds: number;
+    pause_count: number;
+    category: string | null;
+  }>(
+    `SELECT id, start_at, end_at, duration_seconds, COALESCE(pause_count, 0) as pause_count, category
+     FROM activity_events
+     WHERE start_at >= ?
+     ORDER BY start_at DESC`,
+    [startAt]
+  );
+}
+
 export type HourlyAppUsageRow = {
   day: string;
   hour: number;
@@ -429,6 +447,17 @@ export async function getHourlyAppUsage(day: string): Promise<HourlyAppUsageRow[
      FROM hourly_app_usage
      WHERE day = ?
      ORDER BY hour ASC, seconds DESC`,
+    [day]
+  );
+}
+
+export async function getHourlyAppUsageSince(day: string): Promise<HourlyAppUsageRow[]> {
+  const db = await getDatabase();
+  return db.getAllAsync<HourlyAppUsageRow>(
+    `SELECT day, hour, app_id, app_name, bundle_id, seconds, is_focus, captured_at
+     FROM hourly_app_usage
+     WHERE day >= ?
+     ORDER BY day ASC, hour ASC, seconds DESC`,
     [day]
   );
 }

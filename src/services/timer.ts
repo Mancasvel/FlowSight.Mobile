@@ -226,6 +226,16 @@ export async function stopTimer(): Promise<{
   notify();
   void markFocusDayCompleted();
   void persistUsageSnapshot();
+  void import('@/services/sessionInsights').then(async ({ loadSessionsForPeriod, loadRecentHourlyAppUsage }) => {
+    const { maybePrepareInsightNudge } = await import('@/services/localInsightNotify');
+    const [sessions, appUsage] = await Promise.all([loadSessionsForPeriod(7), loadRecentHourlyAppUsage(7)]);
+    await maybePrepareInsightNudge({
+      durationSeconds: result.durationSeconds,
+      pauseCount: result.pauseCount,
+      sessions,
+      appUsage,
+    });
+  });
 
   return result;
 }

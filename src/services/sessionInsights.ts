@@ -3,7 +3,14 @@
  * App names stay on-device; they are never added to the sync queue.
  */
 
-import { getDailyStats, getHourlyAppUsage, getRecentSessions, type HourlyAppUsageRow } from '@/storage';
+import {
+  getDailyStats,
+  getHourlyAppUsage,
+  getHourlyAppUsageSince,
+  getRecentSessions,
+  getSessionsSince,
+  type HourlyAppUsageRow,
+} from '@/storage';
 import { screenTimeCategory } from '@/services/appCategory';
 import { localDateKey, startOfWeekMonday } from '@/utils/format';
 
@@ -53,8 +60,22 @@ export async function loadHourlyAppUsage(day = localDateKey(new Date())): Promis
   return getHourlyAppUsage(day);
 }
 
+export async function loadRecentHourlyAppUsage(days = 7): Promise<StoredAppUsage[]> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (Math.max(1, days) - 1));
+  return getHourlyAppUsageSince(localDateKey(start));
+}
+
 export async function loadRecentSessions(limit = 14): Promise<StoredSession[]> {
   return getRecentSessions(limit);
+}
+
+export async function loadSessionsForPeriod(days = 7, now = new Date()): Promise<StoredSession[]> {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (Math.max(1, days) - 1));
+  return getSessionsSince(start.toISOString());
 }
 
 export async function loadYouStats(): Promise<YouStats> {
