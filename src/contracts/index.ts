@@ -10,7 +10,7 @@ export const CanonicalCategorySchema = z.enum([
   'Analysis', 'Writing', 'Coding', 'Debugging', 'CodeReview',
   'Testing', 'Documentation', 'Design', 'Planning', 'Meeting',
   'Communication', 'Research', 'Learning', 'DevOps', 'Database',
-  'Sales', 'Admin', 'Browsing', 'Idle', 'General',
+  'Sales', 'Admin', 'Browsing', 'Idle', 'General', 'Focus',
 ]);
 
 export type CanonicalCategory = z.infer<typeof CanonicalCategorySchema>;
@@ -26,7 +26,7 @@ export type DataSource = z.infer<typeof DataSourceSchema>;
 
 // ─── Platform ──────────────────────────────────────────────────────────────────
 
-export const PlatformSchema = z.enum(['windows', 'ios', 'android']);
+export const PlatformSchema = z.enum(['windows', 'macos', 'linux', 'ios', 'android']);
 
 export type Platform = z.infer<typeof PlatformSchema>;
 

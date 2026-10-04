@@ -22,6 +22,7 @@ export function useTimer() {
   const [session, setSession] = useState<TimerSession | null>(getCurrentSession());
   const [elapsed, setElapsed] = useState(getElapsedSeconds());
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeTimer((newState: TimerState, newSession: TimerSession | null) => {
@@ -54,10 +55,13 @@ export function useTimer() {
     ticketRef?: string;
   }) => {
     setError(null);
+    setBusy(true);
     try {
       await startTimer(options);
-    } catch {
-      setError('Could not start the timer. Please try again.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not start recording. Review permissions in Settings.');
+    } finally {
+      setBusy(false);
     }
   }, []);
 
@@ -74,8 +78,8 @@ export function useTimer() {
     setError(null);
     try {
       await resumeTimer();
-    } catch {
-      setError('Could not resume the timer.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not resume recording. Review permissions in Settings.');
     }
   }, []);
 
@@ -94,6 +98,7 @@ export function useTimer() {
     session,
     elapsed,
     error,
+    busy,
     start,
     pause,
     resume,

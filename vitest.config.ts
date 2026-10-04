@@ -12,6 +12,7 @@ export default defineConfig({
     },
   },
   test: {
+    env: { EXPO_PUBLIC_PRIVATE_SYNC_ENABLED: 'true' },
     globals: true,
     environment: 'node',
     include: ['__tests__/**/*.test.ts'],

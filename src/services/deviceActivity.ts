@@ -6,7 +6,7 @@
  * persisted or uploaded by this service.
  */
 
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import {
   checkDeviceActivityPermission,
   getDeviceActivity,
@@ -64,6 +64,19 @@ export async function hasUsageAccess(): Promise<boolean> {
 }
 
 export async function openUsageAccessSettings(): Promise<void> {
+  const confirmed = await new Promise<boolean>((resolve) => {
+    Alert.alert(
+      'Allow Usage Access?',
+      'If you continue, Android Settings will ask you to give FlowSight Usage Access.\n\n' +
+        'FlowSight will then read app names and how long each app was in the foreground, only between Start and Stop. That data stays on this device, is not uploaded, and is not used for ads.\n\n' +
+        'You can decline. Recording stays off until Usage Access is enabled.',
+      [
+        { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Continue', onPress: () => resolve(true) },
+      ]
+    );
+  });
+  if (!confirmed) return;
   await requestDeviceActivityPermission();
 }
 
@@ -121,14 +134,14 @@ export async function startDeviceActivityCapture(): Promise<CaptureResult> {
   const permission = await checkDeviceActivityPermission();
   if (!permission.granted) {
     const warning =
-      'Usage Access is off. Enable FlowSight in Android Settings, then start a new session. The timer still works without it.';
+      'Usage Access is off. Enable FlowSight in Android Settings, then start a new session. Recording stays off until permission is enabled.';
     setWarning(warning);
     return { started: false, warning };
   }
 
   const monitoring = await startSessionMonitoring();
   if (!monitoring.started) {
-    const warning = 'Could not open the Android activity window. The timer still works.';
+    const warning = 'Could not open the Android activity window. Recording has not started.';
     setWarning(warning);
     return { started: false, warning };
   }

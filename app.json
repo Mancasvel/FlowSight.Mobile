@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlowSight",
     "slug": "flowsight-android",
-    "version": "1.2.0",
+    "version": "1.4.0",
     "orientation": "default",
     "icon": "./assets/icon-android.png",
     "scheme": "flowsight",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "ai.flowsight.mobile",
-      "versionCode": 1,
+      "versionCode": 3,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
       "allowBackup": false,

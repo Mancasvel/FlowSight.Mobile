@@ -28,6 +28,7 @@ import {
 } from '@/services/sessionInsights';
 import { formatDurationShort, localDateKey } from '@/utils/format';
 import { useTheme } from '@/theme';
+import { SharedSessions } from '@/components/SharedSessions';
 import { spacing } from '@/theme/tokens';
 
 export default function InsightsScreen() {
@@ -102,6 +103,7 @@ export default function InsightsScreen() {
           </Typography>
         </View>
 
+        <SharedSessions />
         <WeekStrip days={weekDays} />
 
         <View style={styles.metrics}>
@@ -122,7 +124,7 @@ export default function InsightsScreen() {
           <HourlyBarChart buckets={hourBuckets} />
           {nativeScreenTime && !usageAccess ? (
             <Notice tone="info" icon="apps-outline">
-              Enable Usage Access to see hourly categories. The focus timer works without it.
+              Enable Usage Access to see hourly categories. Recording requires this permission.
             </Notice>
           ) : null}
           {nativeScreenTime && !usageAccess ? (

@@ -1,20 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, View, StyleSheet, Alert, Share, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, Alert, Share, Pressable, ScrollView, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Screen, Card, Button, Typography, ToggleRow } from '@/components';
+import { PermissionsPanel } from '@/components/PermissionsPanel';
+import { DeviceConnection } from '@/components/DeviceConnection';
 import { useAuth } from '@/hooks';
-import {
-  isNativeDeviceActivityAvailable,
-} from '../modules/flowsight-device-activity/src/index';
+
 import {
   deleteCloudAccount,
   deleteLocalData,
   exportLocalData,
-  getPrivacyConsent,
-  updatePrivacyConsent,
 } from '@/privacy/privacyService';
-import { hasUsageAccess, openUsageAccessSettings } from '@/services/deviceActivity';
 import {
   areFocusNotificationsEnabled,
   canUseFocusNotifications,
@@ -28,31 +25,8 @@ export default function SettingsScreen() {
   const { theme } = useTheme();
   const { isAuthenticated } = useAuth();
   const [busy, setBusy] = useState(false);
-  const [cloudSync, setCloudSync] = useState(false);
   const [notify, setNotify] = useState(false);
-  const [usageAccess, setUsageAccess] = useState(false);
-  const nativeScreenTime = isNativeDeviceActivityAvailable();
-
-  useEffect(() => {
-    void getPrivacyConsent().then((consent) => setCloudSync(consent.cloudSync));
-    void areFocusNotificationsEnabled().then(setNotify);
-    if (nativeScreenTime) void hasUsageAccess().then(setUsageAccess);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && nativeScreenTime) void hasUsageAccess().then(setUsageAccess);
-    });
-    return () => subscription.remove();
-  }, [nativeScreenTime]);
-
-  const toggleSync = async (next: boolean) => {
-    await updatePrivacyConsent({ cloudSync: next });
-    setCloudSync(next);
-    Alert.alert(
-      'Cloud sync',
-      next
-        ? 'Timer session totals may sync if you sign in. Android per-app activity never leaves this device.'
-        : 'Cloud sync is off. New sessions stay only on this device.'
-    );
-  };
+  useEffect(() => { void areFocusNotificationsEnabled().then(setNotify); }, []);
 
   const toggleNotifications = async (next: boolean) => {
     const enabled = await setFocusNotificationsEnabled(next);
@@ -136,9 +110,12 @@ export default function SettingsScreen() {
             <Typography variant="kicker" color={theme.primary}>
               Privacy
             </Typography>
-            <Typography variant="title">Data and rights</Typography>
+            <Typography variant="title">Settings</Typography>
           </View>
         </View>
+
+        <PermissionsPanel />
+        <DeviceConnection />
 
         <Card style={styles.card}>
           <Typography variant="kicker" color={theme.primary}>
@@ -156,29 +133,9 @@ export default function SettingsScreen() {
           </Typography>
           <Typography variant="subtitle">No in-app purchases</Typography>
           <Typography variant="caption">
-            This app does not sell subscriptions or unlocks. Desktop coaching and computer sync are outside this binary.
+            This app does not sell subscriptions or unlocks. Cloud sync is optional and follows your account’s existing access.
           </Typography>
         </Card>
-
-        {nativeScreenTime ? (
-          <Card style={styles.card}>
-            <Typography variant="kicker" color={theme.primary}>
-              03
-            </Typography>
-            <Typography variant="subtitle">Android Usage Access</Typography>
-            <Typography variant="caption">
-              {usageAccess
-                ? 'Enabled. FlowSight can calculate foreground app time locally during focus windows.'
-                : 'Disabled. The manual timer works, but the private app timeline is unavailable.'}
-            </Typography>
-            <Button
-              label={usageAccess ? 'Review Usage Access' : 'Enable Usage Access'}
-              variant={usageAccess ? 'secondary' : 'primary'}
-              onPress={() => void openUsageAccessSettings()}
-              disabled={busy}
-            />
-          </Card>
-        ) : null}
 
         <Card style={styles.card}>
           <ToggleRow
@@ -192,19 +149,21 @@ export default function SettingsScreen() {
           />
         </Card>
 
-        <Card style={styles.card}>
-          <ToggleRow
-            label="Optional cloud sync"
-            caption="Timer totals only. Per-app Android activity never leaves this device."
-            value={cloudSync}
-            onValueChange={(next) => {
-              void toggleSync(next);
-            }}
-            disabled={busy}
-          />
-        </Card>
+
 
         <View style={styles.actions}>
+          <Button
+            label="Read privacy policy"
+            variant="secondary"
+            onPress={() => void Linking.openURL('https://flowsight.site/privacy-policy')}
+            disabled={busy}
+          />
+          <Button
+            label="Account deletion help"
+            variant="secondary"
+            onPress={() => void Linking.openURL('https://flowsight.site/delete-account')}
+            disabled={busy}
+          />
           <Button label="Export my data" variant="secondary" onPress={() => void exportData()} disabled={busy} />
           <Button label="Delete local data" variant="danger" onPress={eraseLocal} disabled={busy} />
           {isAuthenticated ? (
@@ -220,8 +179,8 @@ const styles = StyleSheet.create({
   content: { gap: spacing.lg, paddingBottom: 40 },
   top: { gap: spacing.lg },
   back: {
-    width: 36,
-    height: 36,
+    width: 48,
+    height: 48,
     borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',

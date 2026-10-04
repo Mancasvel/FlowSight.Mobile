@@ -76,6 +76,9 @@ class FlowSightDeviceActivityModule : Module() {
           "error" to "context_unavailable"
         )
       val preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+      if (!hasUsageAccess(context)) {
+        return@AsyncFunction mapOf("started" to false, "startMs" to 0.0, "error" to "permission_denied")
+      }
       val savedStartMs = preferences.getLong(startKey, 0L)
       val savedEndMs = preferences.getLong(endKey, 0L)
       val hasOpenWindow = savedStartMs > 0L && savedEndMs <= savedStartMs

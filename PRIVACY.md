@@ -42,7 +42,10 @@ FlowSight is a general productivity tool and is not directed to children.
 
 ## Contact
 
-Before publication, replace this paragraph with the public support email and privacy-policy URL used in Play Console. The policy must be hosted on a publicly accessible, non-editable web page.
+Privacy questions and account-deletion requests can be sent to privacy@flowsight.site.
+
+- Privacy policy: https://flowsight.site/privacy-policy
+- Account deletion: https://flowsight.site/delete-account
 
 ## Changes
 

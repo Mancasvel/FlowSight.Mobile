@@ -29,6 +29,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       disabled={disabled || loading}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       onPress={() => {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
@@ -117,8 +118,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   label: {
+    textAlign: 'center',
+    flexShrink: 1,
     fontFamily: fontFamily.bodySemibold,
     fontSize: fontSize.md,
   },

@@ -28,7 +28,7 @@ const STEPS = [
   {
     icon: 'pulse-outline' as const,
     title: 'Live timeline',
-    body: 'While you work, the hour line updates locally. The manual timer still works if you skip Usage Access.',
+    body: 'While you work, the hour line updates locally. Recording stays off until Usage Access is enabled.',
   },
   {
     icon: 'checkmark-circle-outline' as const,
@@ -93,7 +93,7 @@ export default function OnboardingScreen() {
               <Typography variant="caption" style={styles.permissionCopy}>
                 {usageAccess
                   ? 'Usage Access is enabled. FlowSight can build the local app timeline.'
-                  : 'You can skip this permission. The focus timer remains fully available.'}
+                  : 'You can grant this later in Settings. Recording stays off until then.'}
               </Typography>
             </View>
           ) : null}

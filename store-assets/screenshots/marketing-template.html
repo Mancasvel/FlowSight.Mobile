@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FlowSight Play Store screenshots</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+        --accent: #2dd4bf;
+        --accent-rgb: 45, 212, 191;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 1080px;
+        height: 2160px;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      body {
+        background: #080b18;
+      }
+
+      .canvas {
+        position: relative;
+        width: 1080px;
+        height: 2160px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 88% 5%, rgba(var(--accent-rgb), 0.22), transparent 29%),
+          radial-gradient(circle at 3% 85%, rgba(99, 102, 241, 0.19), transparent 31%),
+          linear-gradient(160deg, #080b18 0%, #0b1022 48%, #11102a 100%);
+      }
+
+      .canvas::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        opacity: 0.05;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.75) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.75) 1px, transparent 1px);
+        background-size: 144px 144px;
+        mask-image: linear-gradient(to bottom, black, transparent 88%);
+      }
+
+      .copy-card {
+        position: absolute;
+        z-index: 2;
+        top: 64px;
+        left: 64px;
+        width: 952px;
+        height: 520px;
+        padding: 46px 48px 42px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 36px;
+        background: rgba(14, 18, 37, 0.84);
+        box-shadow:
+          0 28px 90px rgba(0, 0, 0, 0.28),
+          inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(24px);
+      }
+
+      .brand-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 34px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        color: #f8fafc;
+        font-size: 32px;
+        font-weight: 650;
+        letter-spacing: -0.6px;
+      }
+
+      .app-icon {
+        width: 66px;
+        height: 66px;
+        border-radius: 18px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+      }
+
+      .counter {
+        display: inline-flex;
+        align-items: center;
+        height: 48px;
+        padding: 0 18px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.055);
+        color: #94a3b8;
+        font-size: 22px;
+        font-weight: 650;
+        letter-spacing: 1.4px;
+      }
+
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        margin-bottom: 17px;
+        color: var(--accent);
+        font-size: 23px;
+        font-weight: 750;
+        letter-spacing: 3.5px;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 22px rgba(var(--accent-rgb), 0.75);
+        content: "";
+      }
+
+      h1 {
+        max-width: 850px;
+        margin: 0;
+        color: #f8fafc;
+        font-size: 72px;
+        font-weight: 720;
+        line-height: 0.99;
+        letter-spacing: -3.7px;
+      }
+
+      .description {
+        max-width: 830px;
+        margin: 20px 0 0;
+        color: #aab6ca;
+        font-size: 29px;
+        font-weight: 400;
+        line-height: 1.32;
+        letter-spacing: -0.4px;
+      }
+
+      .chips {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 43px;
+        padding: 0 17px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.055);
+        color: #dce5f3;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: 0.1px;
+      }
+
+      .chip::before {
+        width: 7px;
+        height: 7px;
+        margin-right: 10px;
+        border-radius: 50%;
+        background: var(--accent);
+        content: "";
+      }
+
+      .device-glow {
+        position: absolute;
+        z-index: 0;
+        top: 655px;
+        left: 170px;
+        width: 740px;
+        height: 1390px;
+        border-radius: 90px;
+        background: rgba(var(--accent-rgb), 0.2);
+        filter: blur(76px);
+        opacity: 0.46;
+      }
+
+      .device {
+        position: absolute;
+        z-index: 1;
+        top: 628px;
+        left: 164px;
+        width: 752px;
+        height: 1472px;
+        padding: 16px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.19);
+        border-radius: 66px;
+        background: #111827;
+        box-shadow:
+          0 54px 130px rgba(0, 0, 0, 0.48),
+          0 0 0 1px rgba(255, 255, 255, 0.04),
+          inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      }
+
+      .screen {
+        display: block;
+        width: 720px;
+        height: 1440px;
+        object-fit: cover;
+        border-radius: 50px;
+        background: white;
+      }
+
+      .accent-line {
+        position: absolute;
+        z-index: 3;
+        left: 405px;
+        bottom: 24px;
+        width: 270px;
+        height: 5px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        opacity: 0.72;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="canvas">
+      <section class="copy-card">
+        <div class="brand-row">
+          <div class="brand">
+            <img class="app-icon" src="../play-icon.png" alt="" />
+            <span>FlowSight</span>
+          </div>
+          <div class="counter" id="counter"></div>
+        </div>
+        <div class="eyebrow" id="eyebrow"></div>
+        <h1 id="headline"></h1>
+        <p class="description" id="description"></p>
+        <div class="chips">
+          <div class="chip" id="chip-one"></div>
+          <div class="chip" id="chip-two"></div>
+        </div>
+      </section>
+      <div class="device-glow"></div>
+      <div class="device">
+        <img class="screen" id="screen" alt="FlowSight Android interface" />
+      </div>
+      <div class="accent-line"></div>
+    </main>
+
+    <script>
+      const slides = [
+        {
+          source: "phone/01-today.png",
+          accent: "#2dd4bf",
+          rgb: "45, 212, 191",
+          eyebrow: "Focus timer",
+          headline: "Focus without losing context.",
+          description: "Start, pause, resume, and stop a focused work block in one tap.",
+          chips: ["Persistent timer", "Flexible goals"],
+        },
+        {
+          source: "phone/02-insights.png",
+          accent: "#38bdf8",
+          rgb: "56, 189, 248",
+          eyebrow: "Private insights",
+          headline: "See how focus actually happened.",
+          description: "Review sessions, trends, and app activity by hour—calculated on your device.",
+          chips: ["Clear patterns", "On-device analysis"],
+        },
+        {
+          source: "phone/03-you.png",
+          accent: "#7dd3fc",
+          rgb: "125, 211, 252",
+          eyebrow: "Your space",
+          headline: "Your focus, your controls.",
+          description: "Manage reminders, privacy, Usage Access, themes, and account preferences.",
+          chips: ["Granular settings", "You stay in control"],
+        },
+        {
+          source: "phone/04-onboarding.png",
+          accent: "#34d399",
+          rgb: "52, 211, 153",
+          eyebrow: "Guided setup",
+          headline: "A clear start, step by step.",
+          description: "Learn exactly what FlowSight measures before enabling optional access.",
+          chips: ["Transparent setup", "No surprises"],
+        },
+        {
+          source: "phone/05-auth.png",
+          accent: "#818cf8",
+          rgb: "129, 140, 248",
+          eyebrow: "Optional account",
+          headline: "Sync only when you choose.",
+          description: "Sign in is optional. Per-app activity stays on your device.",
+          chips: ["Optional sync", "Local by default"],
+        },
+      ];
+
+      const params = new URLSearchParams(window.location.search);
+      const index = Math.max(0, Math.min(slides.length - 1, Number(params.get("slide") || 0)));
+      const slide = slides[index];
+
+      document.documentElement.style.setProperty("--accent", slide.accent);
+      document.documentElement.style.setProperty("--accent-rgb", slide.rgb);
+      document.getElementById("counter").textContent = `${String(index + 1).padStart(2, "0")} / 05`;
+      document.getElementById("eyebrow").textContent = slide.eyebrow;
+      document.getElementById("headline").textContent = slide.headline;
+      document.getElementById("description").textContent = slide.description;
+      document.getElementById("chip-one").textContent = slide.chips[0];
+      document.getElementById("chip-two").textContent = slide.chips[1];
+      document.getElementById("screen").src = slide.source;
+    </script>
+  </body>
+</html>
