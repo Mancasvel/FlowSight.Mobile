@@ -14,8 +14,6 @@ import {
   getUsageSnapshot,
   hasActivitySelection,
   isNativeDeviceActivityAvailable,
-  presentActivityPicker,
-  requestDeviceActivityPermission,
   startSessionMonitoring,
   stopSessionMonitoring,
   type SessionWindow,
@@ -109,29 +107,23 @@ export async function startDeviceActivityCapture(): Promise<CaptureResult> {
     return result;
   }
 
-  let permission = await checkDeviceActivityPermission();
-  if (!permission.granted) {
-    permission = await requestDeviceActivityPermission();
-  }
+  const permission = await checkDeviceActivityPermission();
 
   if (!permission.granted) {
     const result = {
       started: false,
       warning: permission.error
-        ? `Screen Time is unavailable (${permission.error}). The timer still runs.`
-        : 'Screen Time permission was not granted. The timer still runs. Apple must approve the Family Controls entitlement for per-app reports.',
+        ? `Screen Time is unavailable (${permission.error}). Recording has not started.`
+        : 'Screen Time permission was not granted. Recording has not started. Apple must approve the Family Controls entitlement for per-app reports.',
     };
     setWarning(result.warning);
     return result;
   }
 
-  try {
-    const selected = await hasActivitySelection();
-    if (!selected) {
-      await presentActivityPicker();
-    }
-  } catch {
-    // Picker is optional if the user already authorized Screen Time.
+  if (!(await hasActivitySelection())) {
+    const warning = 'Choose measured apps in Settings → Permissions before recording.';
+    setWarning(warning);
+    return { started: false, warning };
   }
 
   const monitoring = await startSessionMonitoring();
@@ -139,8 +131,8 @@ export async function startDeviceActivityCapture(): Promise<CaptureResult> {
     const result = {
       started: false,
       warning: monitoring.error
-        ? `Could not start Screen Time monitoring (${monitoring.error}). The timer still runs.`
-        : 'Could not start Screen Time monitoring. The timer still runs.',
+        ? `Could not start Screen Time monitoring (${monitoring.error}). Recording has not started.`
+        : 'Could not start Screen Time monitoring. Recording has not started.',
     };
     setWarning(result.warning);
     return result;

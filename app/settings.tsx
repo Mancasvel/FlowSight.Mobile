@@ -3,16 +3,11 @@ import { View, StyleSheet, Alert, Share, Pressable, ScrollView } from 'react-nat
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen, Card, Button, Typography, ToggleRow } from '@/components';
-import {
-  hasActivitySelection,
-  isNativeDeviceActivityAvailable,
-  presentActivityPicker,
-} from '../modules/flowsight-device-activity/src/index';
+import { PermissionsPanel } from '@/components/PermissionsPanel';
+import { DeviceConnection } from '@/components/DeviceConnection';
 import {
   deleteLocalData,
   exportLocalData,
-  getPrivacyConsent,
-  updatePrivacyConsent,
 } from '@/privacy/privacyService';
 import {
   acceptOnDeviceAiNotice,
@@ -39,33 +34,15 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const [busy, setBusy] = useState(false);
-  const [cloudSync, setCloudSync] = useState(false);
   const [notify, setNotify] = useState(false);
   const [insightNudge, setInsightNudge] = useState(false);
   const [aiWriting, setAiWriting] = useState(false);
-  const [needsAppPicker, setNeedsAppPicker] = useState(false);
-  const nativeScreenTime = isNativeDeviceActivityAvailable();
 
   useEffect(() => {
-    void getPrivacyConsent().then((consent) => setCloudSync(consent.cloudSync));
     void areFocusNotificationsEnabled().then(setNotify);
     void areInsightNudgesEnabled().then(setInsightNudge);
     void getOnDeviceAiConsent().then((consent) => setAiWriting(consent.enabled));
-    if (nativeScreenTime) {
-      void hasActivitySelection().then((selected) => setNeedsAppPicker(!selected));
-    }
-  }, [nativeScreenTime]);
-
-  const toggleSync = async (next: boolean) => {
-    await updatePrivacyConsent({ cloudSync: next });
-    setCloudSync(next);
-    Alert.alert(
-      'Cloud sync',
-      next
-        ? 'Timer session totals may sync if you sign in. Apple Screen Time (app names and per-app time) never leaves this iPhone.'
-        : 'Cloud sync is off. New sessions stay only on this iPhone.'
-    );
-  };
+  }, []);
 
   const toggleNotifications = async (next: boolean) => {
     const enabled = await setFocusNotificationsEnabled(next);
@@ -104,11 +81,6 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const chooseMeasuredApps = async () => {
-    const result = await presentActivityPicker();
-    if (result.saved) setNeedsAppPicker(false);
-  };
-
   const exportData = async () => {
     const payload = await exportLocalData();
     await Share.share({
@@ -119,7 +91,7 @@ export default function SettingsScreen() {
   const eraseLocal = () => {
     Alert.alert(
       'Delete local data',
-      'This removes sessions and preferences from this iPhone. Screen Time history stays in Apple Settings. We cannot delete Apple data.',
+      'This removes FlowSight data for every account on this iPhone. Screen Time history stays in Apple Settings.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -133,6 +105,10 @@ export default function SettingsScreen() {
                 setInsightNudge(false);
                 Alert.alert('Done', 'Local FlowSight data was deleted.');
               })
+              .catch((cause) => Alert.alert(
+                'Could not delete all local data',
+                cause instanceof Error ? cause.message : 'Please try again.',
+              ))
               .finally(() => setBusy(false));
           },
         },
@@ -160,6 +136,9 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <PermissionsPanel />
+        <DeviceConnection />
+
         <Card style={styles.card}>
           <Typography variant="kicker" color={theme.primary}>
             01
@@ -176,31 +155,9 @@ export default function SettingsScreen() {
           </Typography>
           <Typography variant="subtitle">No in-app purchases</Typography>
           <Typography variant="caption">
-            This app does not sell subscriptions or unlocks. Desktop coaching and computer sync are outside this binary.
+            This app does not sell subscriptions or unlocks. Use your existing FlowSight account. Private device sync is coming with FlowSight 6.0.
           </Typography>
         </Card>
-
-        {nativeScreenTime ? (
-          <Card style={styles.card}>
-            <Typography variant="kicker" color={theme.primary}>
-              03
-            </Typography>
-            <Typography variant="subtitle">Measured apps</Typography>
-            <Typography variant="caption">
-              {needsAppPicker
-                ? 'Add work apps one by one, then Social or Entertainment as categories so those do not count as focus.'
-                : 'Apple Screen Time only measures the apps and categories you pick. Names never leave this iPhone.'}
-            </Typography>
-            <Button
-              label={needsAppPicker ? 'Choose measured apps' : 'Change measured apps'}
-              variant={needsAppPicker ? 'primary' : 'secondary'}
-              onPress={() => {
-                void chooseMeasuredApps();
-              }}
-              disabled={busy}
-            />
-          </Card>
-        ) : null}
 
         <Card style={styles.card}>
           <ToggleRow
@@ -238,18 +195,6 @@ export default function SettingsScreen() {
           />
         </Card>
 
-        <Card style={styles.card}>
-          <ToggleRow
-            label="Optional cloud sync"
-            caption="Timer totals only. Screen Time never leaves this iPhone."
-            value={cloudSync}
-            onValueChange={(next) => {
-              void toggleSync(next);
-            }}
-            disabled={busy}
-          />
-        </Card>
-
         <View style={styles.actions}>
           <Button label="Export my data" variant="secondary" onPress={() => void exportData()} disabled={busy} />
           <Button label="Delete local data" variant="danger" onPress={eraseLocal} disabled={busy} />
@@ -263,8 +208,8 @@ const styles = StyleSheet.create({
   content: { gap: spacing.lg, paddingBottom: 40 },
   top: { gap: spacing.lg },
   back: {
-    width: 36,
-    height: 36,
+    width: 48,
+    height: 48,
     borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',

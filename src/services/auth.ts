@@ -1,5 +1,5 @@
 /**
- * Auth Service ù Supabase Auth with PKCE and secure session persistence.
+ * Auth Service - Supabase Auth with PKCE and secure session persistence.
  *
  * Tokens live in Keychain (iOS) / Keystore (Android) via expo-secure-store.
  */
@@ -18,6 +18,13 @@ const ExpoSecureStoreAdapter = {
 };
 
 let client: FlowSightClient | null = null;
+
+async function withTimerAccountSwitch<T>(operation: () => Promise<T>): Promise<T> {
+  const timer = await import('@/services/timer');
+  await timer.suspendTimerForAccountSwitch();
+  try { return await operation(); }
+  finally { await timer.recoverTimer().catch(() => undefined); }
+}
 
 export function getClient(): FlowSightClient {
   if (!client) {
@@ -41,21 +48,25 @@ export function getClient(): FlowSightClient {
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const { data, error } = await getClient().signInWithEmail(email, password);
-  if (error) throw error;
-  if (data.session) {
-    await saveSession(data.session.access_token, data.session.refresh_token);
-  }
-  return data;
+  return withTimerAccountSwitch(async () => {
+    const { data, error } = await getClient().signInWithEmail(email, password);
+    if (error) throw error;
+    if (data.session) {
+      await saveSession(data.session.access_token, data.session.refresh_token);
+    }
+    return data;
+  });
 }
 
 export async function signUpWithEmail(email: string, password: string) {
-  const { data, error } = await getClient().signUpWithEmail(email, password);
-  if (error) throw error;
-  if (data.session) {
-    await saveSession(data.session.access_token, data.session.refresh_token);
-  }
-  return data;
+  return withTimerAccountSwitch(async () => {
+    const { data, error } = await getClient().signUpWithEmail(email, password);
+    if (error) throw error;
+    if (data.session) {
+      await saveSession(data.session.access_token, data.session.refresh_token);
+    }
+    return data;
+  });
 }
 
 export async function signInWithGoogle() {
@@ -79,17 +90,24 @@ export async function handleOAuthCallback(url: string) {
   const code = typeof parsed.queryParams?.code === 'string' ? parsed.queryParams.code : null;
   if (!code) return null;
 
-  const { data, error } = await getClient().supabase.auth.exchangeCodeForSession(code);
-  if (error) throw error;
-  if (data.session) {
-    await saveSession(data.session.access_token, data.session.refresh_token);
-  }
-  return data.session;
+  return withTimerAccountSwitch(async () => {
+    const { data, error } = await getClient().supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    if (data.session) {
+      await saveSession(data.session.access_token, data.session.refresh_token);
+    }
+    return data.session;
+  });
 }
 
 export async function signOut() {
-  await getClient().signOut();
-  await clearSession();
+  const { clearEntitlementsCache } = await import('./entitlements');
+  clearEntitlementsCache();
+  await withTimerAccountSwitch(async () => {
+    const { error } = await getClient().signOut();
+    if (error) throw error;
+    await clearSession();
+  });
 }
 
 export async function getCurrentSession(): Promise<Session | null> {

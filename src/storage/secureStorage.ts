@@ -66,7 +66,7 @@ export async function secureGet(key: string): Promise<string | null> {
 }
 
 export async function secureSet(key: string, value: string): Promise<void> {
-  await SecureStore.setItemAsync(key, value);
+  await SecureStore.setItemAsync(key, value, { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
 }
 
 export async function secureDelete(key: string): Promise<void> {

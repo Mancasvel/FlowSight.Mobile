@@ -1,1 +1,1 @@
-First App Store release. Start a block, stop when you are done, and see per-app Screen Time for that window only. Insights and patterns stay on this iPhone.
+Permissions are easier to find in Settings. Recording starts and resumes only after Screen Time access and app selection are ready. Buttons and timer layouts fit smaller screens and larger text. Interrupted sessions recover paused when permission is revoked. On-device AI writing from 1.3.0 is preserved. Private device sync is coming with FlowSight 6.0.
