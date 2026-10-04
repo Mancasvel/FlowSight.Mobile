@@ -1,3 +1,4 @@
+import { describe, expect, test } from 'vitest';
 /**
  * Focus Spec — Parity tests against Rust focus_semantics.rs fixtures.
  *

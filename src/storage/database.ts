@@ -10,14 +10,25 @@ import { createId } from '@/utils/id';
 
 const DB_NAME = 'flowsight.db';
 
-let db: SQLite.SQLiteDatabase | null = null;
+let databaseReady: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync(DB_NAME);
-    await initializeDatabase(db);
+export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+  if (!databaseReady) {
+    databaseReady = (async () => {
+      const database = await SQLite.openDatabaseAsync(DB_NAME);
+      try {
+        await initializeDatabase(database);
+        return database;
+      } catch (error) {
+        await database.closeAsync().catch(() => undefined);
+        throw error;
+      }
+    })().catch((error) => {
+      databaseReady = null;
+      throw error;
+    });
   }
-  return db;
+  return databaseReady;
 }
 
 async function initializeDatabase(database: SQLite.SQLiteDatabase) {
@@ -126,6 +137,16 @@ async function initializeDatabase(database: SQLite.SQLiteDatabase) {
     );
   }
 
+  const coachColumns = await database.getAllAsync<{ name: string }>('PRAGMA table_info(coach_messages)');
+  if (!coachColumns.some((column) => column.name === 'user_id')) {
+    await database.execAsync('ALTER TABLE coach_messages ADD COLUMN user_id TEXT');
+  }
+
+  const ownerColumns = await database.getAllAsync<{ name: string }>('PRAGMA table_info(active_session)');
+  if (!ownerColumns.some((column) => column.name === 'user_id')) {
+    await database.execAsync('ALTER TABLE active_session ADD COLUMN user_id TEXT');
+  }
+
   const sessionColumns = await database.getAllAsync<{ name: string }>(
     'PRAGMA table_info(active_session)'
   );
@@ -178,7 +199,7 @@ export async function insertActivityEvent(event: {
     ]
   );
 
-  const syncConsent = await getPreference('consent_cloud_sync');
+  const syncConsent = event.user_id ? await getPreference(`consent_cloud_sync_${event.user_id}`) : 'false';
   if (syncConsent === 'true') {
     await db.runAsync(
       `INSERT INTO sync_queue (id, event_id, status, created_at, updated_at)
@@ -189,14 +210,17 @@ export async function insertActivityEvent(event: {
 }
 
 export async function getUnsyncedEvents(limit = 50) {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = await getCurrentUser();
   const db = await getDatabase();
   return db.getAllAsync(
     `SELECT ae.* FROM activity_events ae
      JOIN sync_queue sq ON sq.event_id = ae.id
      WHERE sq.status = 'pending'
+       AND ae.user_id = ?
      ORDER BY ae.start_at ASC
      LIMIT ?`,
-    [limit]
+    [owner?.id ?? null, limit]
   );
 }
 
@@ -215,7 +239,15 @@ export async function markEventSynced(eventId: string) {
 
 // ─── Preferences ──────────────────────────────────────────────────────────────
 
+async function scopedPreferenceKey(key: string): Promise<string> {
+  if (!['consent_cloud_sync', 'consent_cloud_ai', 'consent_notice_version', 'consent_timestamp'].includes(key)) return key;
+  const { getCurrentUser } = await import('@/services/auth');
+  const user = await getCurrentUser();
+  return `${key}_${user?.id ?? 'guest'}`;
+}
+
 export async function getPreference(key: string): Promise<string | null> {
+  key = await scopedPreferenceKey(key);
   const db = await getDatabase();
   const row = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM user_preferences WHERE key = ?`,
@@ -225,6 +257,7 @@ export async function getPreference(key: string): Promise<string | null> {
 }
 
 export async function setPreference(key: string, value: string) {
+  key = await scopedPreferenceKey(key);
   const db = await getDatabase();
   const now = new Date().toISOString();
   await db.runAsync(
@@ -237,6 +270,7 @@ export async function setPreference(key: string, value: string) {
 
 export async function saveActiveSession(session: {
   id: string;
+  user_id?: string | null;
   started_at: string;
   category?: string;
   task_label?: string;
@@ -246,17 +280,19 @@ export async function saveActiveSession(session: {
   pause_count?: number;
 }) {
   const db = await getDatabase();
-  await db.runAsync(`DELETE FROM active_session`);
+  await db.runAsync(`DELETE FROM active_session WHERE user_id IS ?`, [session.user_id ?? null]);
   await db.runAsync(
-    `INSERT INTO active_session (id, started_at, category, task_label, ticket_ref, paused_at, accumulated_seconds, pause_count)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [session.id, session.started_at, session.category ?? null,
+    `INSERT INTO active_session (id, user_id, started_at, category, task_label, ticket_ref, paused_at, accumulated_seconds, pause_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [session.id, session.user_id ?? null, session.started_at, session.category ?? null,
      session.task_label ?? null, session.ticket_ref ?? null,
      session.paused_at ?? null, session.accumulated_seconds, session.pause_count ?? 0]
   );
 }
 
 export async function getActiveSession() {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = await getCurrentUser();
   const db = await getDatabase();
   return db.getFirstAsync<{
     id: string;
@@ -267,12 +303,15 @@ export async function getActiveSession() {
     paused_at: string | null;
     accumulated_seconds: number;
     pause_count: number;
-  }>(`SELECT * FROM active_session LIMIT 1`);
+    user_id: string | null;
+  }>(`SELECT * FROM active_session WHERE user_id IS ? LIMIT 1`, [owner?.id ?? null]);
 }
 
-export async function clearActiveSession() {
+export async function clearActiveSession(userId?: string | null) {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = userId === undefined ? (await getCurrentUser())?.id ?? null : userId;
   const db = await getDatabase();
-  await db.runAsync(`DELETE FROM active_session`);
+  await db.runAsync(`DELETE FROM active_session WHERE user_id IS ?`, [owner]);
 }
 
 // ─── Coach Messages ───────────────────────────────────────────────────────────
@@ -282,23 +321,27 @@ export async function saveCoachMessage(message: {
   role: 'user' | 'assistant';
   content: string;
 }) {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = await getCurrentUser();
   const db = await getDatabase();
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
   await db.runAsync(
-    `INSERT INTO coach_messages (id, role, content, created_at, expires_at) VALUES (?, ?, ?, ?, ?)`,
-    [message.id, message.role, message.content, now, expiresAt]
+    `INSERT INTO coach_messages (id, user_id, role, content, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    [message.id, owner?.id ?? null, message.role, message.content, now, expiresAt]
   );
 }
 
 export async function getCoachHistory(limit = 12) {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = await getCurrentUser();
   const db = await getDatabase();
   return db.getAllAsync<{ role: string; content: string }>(
     `SELECT role, content FROM coach_messages
-     WHERE expires_at > datetime('now')
+     WHERE user_id IS ? AND expires_at > datetime('now')
      ORDER BY created_at DESC LIMIT ?`,
-    [limit]
+    [owner?.id ?? null, limit]
   );
 }
 
@@ -312,6 +355,8 @@ export async function cleanupExpiredCoachMessages() {
 // ─── Daily Stats ──────────────────────────────────────────────────────────────
 
 export async function getDailyStats(date: string) {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = await getCurrentUser();
   const db = await getDatabase();
   const rows = await db.getAllAsync<{
     category: string;
@@ -322,10 +367,10 @@ export async function getDailyStats(date: string) {
             SUM(duration_seconds) as total_seconds,
             COUNT(*) as session_count
      FROM activity_events
-     WHERE date(start_at) = ?
+     WHERE user_id IS ? AND date(start_at) = ?
      GROUP BY category
      ORDER BY total_seconds DESC`,
-    [date]
+    [owner?.id ?? null, date]
   );
 
   const totalSeconds = rows.reduce((sum, r) => sum + r.total_seconds, 0);
@@ -333,6 +378,8 @@ export async function getDailyStats(date: string) {
 }
 
 export async function getWeeklyStats(startDate: string, endDate: string) {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = await getCurrentUser();
   const db = await getDatabase();
   return db.getAllAsync<{
     date: string;
@@ -341,14 +388,16 @@ export async function getWeeklyStats(startDate: string, endDate: string) {
     `SELECT date(start_at) as date,
             SUM(duration_seconds) as total_seconds
      FROM activity_events
-     WHERE start_at >= ? AND start_at < ?
+     WHERE user_id IS ? AND start_at >= ? AND start_at < ?
      GROUP BY date(start_at)
      ORDER BY date ASC`,
-    [startDate, endDate]
+    [owner?.id ?? null, startDate, endDate]
   );
 }
 
 export async function getRecentSessions(limit = 14) {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = await getCurrentUser();
   const db = await getDatabase();
   return db.getAllAsync<{
     id: string;
@@ -360,13 +409,16 @@ export async function getRecentSessions(limit = 14) {
   }>(
     `SELECT id, start_at, end_at, duration_seconds, COALESCE(pause_count, 0) as pause_count, category
      FROM activity_events
+     WHERE user_id IS ?
      ORDER BY start_at DESC
      LIMIT ?`,
-    [limit]
+    [owner?.id ?? null, limit]
   );
 }
 
 export async function getSessionsSince(startAt: string) {
+  const { getCurrentUser } = await import('@/services/auth');
+  const owner = await getCurrentUser();
   const db = await getDatabase();
   return db.getAllAsync<{
     id: string;
@@ -378,9 +430,9 @@ export async function getSessionsSince(startAt: string) {
   }>(
     `SELECT id, start_at, end_at, duration_seconds, COALESCE(pause_count, 0) as pause_count, category
      FROM activity_events
-     WHERE start_at >= ?
+     WHERE user_id IS ? AND start_at >= ?
      ORDER BY start_at DESC`,
-    [startAt]
+    [owner?.id ?? null, startAt]
   );
 }
 
@@ -460,4 +512,26 @@ export async function getHourlyAppUsageSince(day: string): Promise<HourlyAppUsag
      ORDER BY day ASC, hour ASC, seconds DESC`,
     [day]
   );
+}
+
+/** Import a decrypted account-owned record without placing it in the upload queue. */
+export async function importSyncedActivityEvent(event: import('@/contracts').ActivityEvent, expectedUserId: string): Promise<void> {
+  const { getCurrentUser } = await import('@/services/auth');
+  const current = await getCurrentUser();
+  if (event.user_id !== expectedUserId || current?.id !== expectedUserId) {
+    throw new Error('The active account changed during sync.');
+  }
+  const db = await getDatabase();
+  await db.runAsync(`INSERT OR IGNORE INTO activity_events (
+    id, client_event_id, user_id, device_id, source, source_platform, capture_source,
+    start_at, end_at, timezone, duration_seconds, category, task_label, ticket_ref,
+    description, confidence, pause_count, schema_version, created_at, updated_at, synced_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    event.id, event.client_event_id, event.user_id, event.device_id, event.source,
+    event.source_platform, event.capture_source, event.start_at, event.end_at,
+    event.timezone, event.duration_seconds, event.category, event.task_label ?? null,
+    event.ticket_ref ?? null, event.description ?? null, event.confidence,
+    (event as typeof event & { pause_count?: number }).pause_count ?? 0,
+    event.schema_version, event.created_at, event.updated_at, new Date().toISOString(),
+  ]);
 }

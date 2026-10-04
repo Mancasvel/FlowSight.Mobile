@@ -1,5 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { StyleSheet, View } from 'react-native';
@@ -8,6 +9,7 @@ import { fontFamily } from '@/theme/tokens';
 
 export default function TabsLayout() {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.root}>
@@ -20,7 +22,7 @@ export default function TabsLayout() {
           position: 'absolute',
           left: 16,
           right: 16,
-          bottom: 12,
+          bottom: insets.bottom + 12,
           height: 68,
           paddingTop: 8,
           paddingBottom: 10,

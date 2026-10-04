@@ -14,6 +14,7 @@ import {
   ProgressBar,
 } from '@/components';
 import { useTimer } from '@/hooks';
+import { useRouter } from 'expo-router';
 import {
   getCaptureWarning,
   subscribeCaptureWarning,
@@ -36,6 +37,7 @@ const MAX_GOAL_HOURS = Math.floor(MAX_FOCUS_GOAL_MINUTES / 60);
 export default function TodayScreen() {
   const { theme } = useTheme();
   const timer = useTimer();
+  const router = useRouter();
   const [captureWarning, setCaptureWarning] = useState(getCaptureWarning);
   const [sessionWarnings, setSessionWarnings] = useState<string[]>([]);
   const [goalMinutes, setGoalMinutes] = useState(DEFAULT_FOCUS_GOAL_MINUTES);
@@ -138,13 +140,13 @@ export default function TodayScreen() {
               ? 'Start a block. Screen Time is measured only while the timer runs.'
               : nativeCapture
                 ? 'Pause holds the clock. Stop ends the block.'
-                : 'Timer only. Per-app time needs the native iOS build.'}
+                : 'Review Screen Time permission in Settings.'}
           </Typography>
         </View>
 
         <Card style={styles.timerCard}>
           <StatusChip label={statusLabel} tone={statusTone} />
-          <Typography variant="display" style={styles.clock}>
+          <Typography variant="display" style={styles.clock} numberOfLines={1} adjustsFontSizeToFit>
             {formatDuration(timer.elapsed)}
           </Typography>
           <View style={styles.progressBlock}>
@@ -175,6 +177,8 @@ export default function TodayScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={timer.isRunning ? 'Pause timer' : timer.isPaused ? 'Resume timer' : 'Start timer'}
+              disabled={timer.busy}
+              accessibilityState={{ disabled: timer.busy, busy: timer.busy }}
               onPress={toggleTimer}
               style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
             >
@@ -191,7 +195,7 @@ export default function TodayScreen() {
                   style={!timer.isRunning ? styles.playIcon : undefined}
                 />
                 <Typography color="#FFFFFF" style={styles.primaryLabel}>
-                  {timer.isRunning ? 'Pause' : timer.isPaused ? 'Resume' : 'Start block'}
+                  {timer.busy ? 'Checking…' : timer.isRunning ? 'Pause' : timer.isPaused ? 'Resume' : 'Start block'}
                 </Typography>
               </LinearGradient>
             </Pressable>
@@ -217,9 +221,12 @@ export default function TodayScreen() {
         </Card>
 
         {timer.error ? (
-          <Notice tone="error" icon="alert-circle-outline">
-            {timer.error}
-          </Notice>
+          <View style={{ gap: spacing.sm }}>
+            <Notice tone="error" icon="alert-circle-outline">{timer.error}</Notice>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} style={{ minHeight: 48, justifyContent: 'center' }}>
+              <Typography color={theme.primary}>Open Settings → Permissions</Typography>
+            </Pressable>
+          </View>
         ) : null}
 
         {!isNativeDeviceActivityAvailable() ? (
@@ -390,6 +397,8 @@ const styles = StyleSheet.create({
   content: { gap: spacing.xl, paddingBottom: 120 },
   header: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
@@ -405,7 +414,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.xxl,
   },
-  clock: { fontSize: 52, lineHeight: 58 },
+  clock: { fontSize: 52, lineHeight: 58, maxWidth: '100%', textAlign: 'center' },
   progressBlock: {
     width: '100%',
     gap: 8,
@@ -425,13 +434,15 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing.sm,
     paddingTop: spacing.sm,
   },
   primaryAction: {
     flex: 1,
-    height: 52,
+    minWidth: 160,
+    minHeight: 52,
     borderRadius: radius.lg,
     shadowColor: '#0F766E',
     shadowOffset: { width: 0, height: 10 },
@@ -440,6 +451,9 @@ const styles = StyleSheet.create({
   },
   primaryGradient: {
     flex: 1,
+    minHeight: 52,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     borderRadius: radius.lg,
     flexDirection: 'row',
     alignItems: 'center',
@@ -449,6 +463,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.42)',
   },
   primaryLabel: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontFamily: fontFamily.bodySemibold,
     fontSize: 16,
   },

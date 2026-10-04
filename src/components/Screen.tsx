@@ -30,7 +30,7 @@ export function Screen({
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={[styles.inner, padded ? styles.padded : null, style]}>{children}</View>
       </SafeAreaView>
     </View>

@@ -1,3 +1,4 @@
+import { SharedSessions } from '@/components/SharedSessions';
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -227,6 +228,7 @@ export default function InsightsScreen() {
           </View>
         </View>
 
+        <SharedSessions />
         {showNotice ? (
           <Card style={styles.setupCard}>
             <SectionHeader

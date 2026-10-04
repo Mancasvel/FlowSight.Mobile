@@ -8,12 +8,24 @@ import { ThemeProvider, useTheme, brandFonts } from '@/theme';
 import { hydrateFocusNotifications } from '@/services/notifications';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
+import { AppState } from 'react-native';
+import { validateRecordingPermission } from '@/services/timer';
 
 function RootLayoutNav() {
   const { theme, isDark } = useTheme();
 
   useEffect(() => {
     void hydrateFocusNotifications();
+    let mounted = true;
+    let stopSync: (() => void) | null = null;
+    void import('@/services/sync').then(({ startPeriodicSync, stopPeriodicSync }) => {
+      if (!mounted) return;
+      startPeriodicSync();
+      stopSync = stopPeriodicSync;
+    });
+    const foreground = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void validateRecordingPermission().catch(() => undefined);
+    });
     const sub = Linking.addEventListener('url', ({ url }) => {
       const parsed = Linking.parse(url);
       if (parsed.path === 'insights' || parsed.hostname === 'insights') {
@@ -21,7 +33,12 @@ function RootLayoutNav() {
         router.push({ pathname: '/insights', params: card ? { card } : undefined });
       }
     });
-    return () => sub.remove();
+    return () => {
+      mounted = false;
+      stopSync?.();
+      sub.remove();
+      foreground.remove();
+    };
   }, []);
 
   return (

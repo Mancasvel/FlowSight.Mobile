@@ -14,7 +14,6 @@ import {
   PrivacyPreferencesSchema,
   type PrivacyPreferences,
   CoachResponseSchema,
-  type ActivityEvent,
 } from '@/contracts';
 
 // --- Client Factory ------------------------------------------------------------
@@ -130,30 +129,17 @@ export class FlowSightClient {
 
   // -- Activity Sync ---------------------------------------------------------
 
-  async uploadActivities(events: ActivityEvent[]) {
-    const rows = events.map((e) => ({
-      user_id: e.user_id,
-      device_id: e.device_id,
-      source_platform: e.source_platform,
-      capture_source: e.capture_source,
-      client_event_id: e.client_event_id,
-      schema_version: e.schema_version,
-      start_at: e.start_at,
-      end_at: e.end_at,
-      timezone: e.timezone,
-      duration_seconds: e.duration_seconds,
-      category: e.category,
-      task_label: e.task_label,
-      ticket_ref: e.ticket_ref,
-      confidence: e.confidence,
-    }));
-
-    return this.supabase
-      .from('activity_reports')
-      .upsert(rows, {
-        onConflict: 'user_id,device_id,client_event_id',
-        ignoreDuplicates: true,
-      });
+  async getSharedSessions() {
+    const { getCurrentUser } = await import('@/services/auth');
+    const { getDatabase } = await import('@/storage');
+    const owner = await getCurrentUser();
+    if (!owner) throw new Error('Sign in with your FlowSight.AI account to see shared sessions.');
+    const db = await getDatabase();
+    const data = await db.getAllAsync<{
+      id: string; source_platform: string; duration_seconds: number; created_at: string;
+    }>(`SELECT id, source_platform, duration_seconds, created_at FROM activity_events
+        WHERE user_id = ? AND synced_at IS NOT NULL ORDER BY start_at DESC LIMIT 20`, [owner.id]);
+    return { data, error: null };
   }
 
   // -- Coach -----------------------------------------------------------------

@@ -20,3 +20,5 @@ export {
   type HourlyAppUsageRow,
 } from './database';
 export { saveSession, getAccessToken, getRefreshToken, clearSession, getDeviceId, getInstallationId } from './secureStorage';
+
+export { importSyncedActivityEvent } from './database';
